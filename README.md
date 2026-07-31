@@ -10,7 +10,7 @@ Claude Desktop extension that gives Claude access to the **Calendar app of a Syn
 
 Setup asks for a **host name and a protocol switch**, never a URL. The extension assembles the endpoint itself, which removes the single most common way to get CalDAV configuration wrong.
 
-See also **[synology-contacts-mcp](https://github.com/sorglos-it/synology-contacts-mcp)** — the same idea for contacts over CardDAV.
+See also **[synology-contacts-mcp](https://github.com/sorglos-it/synology-contacts-mcp)** — the same idea for contacts over CardDAV — and **[github-mcp](https://github.com/sorglos-it/github-mcp)** for repositories on github.com.
 
 ## Features
 
@@ -73,6 +73,24 @@ The labels are German because the extension manifest is; the fields behave exact
 
 `CALDAV_BASE_URL` is still honoured if you set it directly, and wins over the host name — useful for a server that lives behind a path.
 
+## Environment variables
+
+Useful if you want to run the server standalone rather than as an extension:
+
+| Variable | Meaning |
+|---|---|
+| `CALDAV_HOST` | Host name, `:port` optional |
+| `CALDAV_HTTPS` | `true` (default) → https + port 5001, `false` → http + port 5000 |
+| `CALDAV_USERNAME` | DSM login name |
+| `CALDAV_PASSWORD` | DSM password |
+| `CALDAV_VERIFY_SSL` | `false` for a self-signed certificate |
+| `CALDAV_TIMEOUT` | Seconds per request, default `45`. Blank or unparsable falls back to the default. |
+| `CALDAV_BASE_URL` | Legacy: a complete endpoint URL, wins over `CALDAV_HOST` |
+
+```bash
+node index.js
+```
+
 ## Notes & caveats
 
 - **Shared calendars can be read-only.** Synology hands out team calendars without write privileges in some configurations; writes then fail with HTTP 403.
@@ -94,12 +112,14 @@ npx @anthropic-ai/mcpb pack . synology-calendar-1.1.2.mcpb
 
 Built around [caldav-mcp](https://github.com/dominik1001/caldav-mcp) by Dominik Grusemann (MIT), bundled unmodified.
 
-## Support
+## Support this project ❤️
 
 If this extension saved you time, you can support further development:
 
 [![Donate with PayPal](https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif)](https://www.paypal.com/donate/?hosted_button_id=6CDEVZGJWTNQQ)
 
+**[➡️ Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=6CDEVZGJWTNQQ)**
+
 ## License
 
-MIT
+This project is licensed under the [MIT License](LICENSE) — © 2026 Thomas Weirich.
