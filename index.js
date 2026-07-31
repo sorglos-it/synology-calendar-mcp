@@ -12,8 +12,13 @@
  *   2. The settings dialog asks for a host name and a protocol switch, not a
  *      URL. CALDAV_BASE_URL is assembled from those before caldav-mcp reads it.
  *
- * Unlike CardDAV, ts-caldav discovers the DAV path itself, so the calendar URL
- * is the bare origin - no path appended.
+ * The CalDAV path is appended here, exactly like the contacts extension does.
+ * ts-caldav can discover it on its own, but not against DSM: its well-known
+ * probe fetches /.well-known/caldav with GET, where DSM answers 404 (only
+ * OPTIONS works there), and its fallback candidates carry no trailing slash,
+ * where DSM answers 405. Discovery then falls back to the bare origin, DSM
+ * serves the web UI with 200 and no principal, and the server dies with
+ * "User principal not found" before it ever speaks MCP.
  */
 
 const flag = (name, fallback) => {
@@ -28,7 +33,20 @@ const flag = (name, fallback) => {
 const DEFAULT_PORT = { true: 5001, false: 5000 }; // DSM https / http
 
 /**
- * Build the CalDAV origin from a bare host name.
+ * Read a timeout in seconds. Blank, unparsable or non-positive falls back to the
+ * default instead of throwing - a typo in that settings field must not be the
+ * reason the whole server refuses to start.
+ *
+ * Seconds, not milliseconds: the contacts extension asks for seconds, and two
+ * sibling dialogs where the same number means different things is a trap.
+ */
+const seconds = (name, fallback) => {
+	const secs = Number(String(process.env[name] ?? "").trim());
+	return Number.isFinite(secs) && secs > 0 ? secs : fallback;
+};
+
+/**
+ * Build the CalDAV base URL from a bare host name.
  *
  * People paste whole URLs into any field that looks like it wants one, so a
  * pasted scheme, path or query is stripped rather than rejected: the protocol
@@ -43,7 +61,7 @@ const composeBaseUrl = (host, https) => {
 	if (!h.slice(h.lastIndexOf("]") + 1).includes(":")) {
 		h = `${h}:${DEFAULT_PORT[https]}`;
 	}
-	return `${https ? "https" : "http"}://${h}`;
+	return `${https ? "https" : "http"}://${h}/caldav/`;
 };
 
 if (!flag("CALDAV_VERIFY_SSL", true)) {
@@ -69,5 +87,26 @@ if (missing.length > 0) {
 	);
 	process.exit(1);
 }
+
+/*
+ * DSM answers the first authenticated request of a session in roughly five
+ * seconds and serves every later one from its session cache in milliseconds.
+ * ts-caldav hardcodes a 5000 ms axios timeout and caldav-mcp never passes
+ * requestTimeout, so that very first PROPFIND loses the race by a hair,
+ * discovery throws, and the process exits before it has spoken a word of MCP -
+ * all Claude Desktop reports is "Server transport closed unexpectedly".
+ *
+ * The window is the "Zeitlimit pro Anfrage" field of the extension settings.
+ *
+ * The path below resolves to the same module instance the bundled server
+ * imports as "ts-caldav" (its exports map points "." at dist/index.mjs), so
+ * widening the default here reaches the client that server builds. Both files
+ * ship inside this package and are pinned together.
+ */
+const REQUEST_TIMEOUT_MS = seconds("CALDAV_TIMEOUT", 45) * 1000;
+const tsCaldav = await import("./server/node_modules/ts-caldav/dist/index.mjs");
+const createClient = tsCaldav.CalDAVClient.create.bind(tsCaldav.CalDAVClient);
+tsCaldav.CalDAVClient.create = (options) =>
+	createClient({ requestTimeout: REQUEST_TIMEOUT_MS, ...options });
 
 await import("./server/dist/index.js");

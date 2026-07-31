@@ -31,7 +31,7 @@ See also **[synology-contacts-mcp](https://github.com/sorglos-it/synology-contac
 
 ## Installation
 
-1. Grab `synology-calendar-1.1.0.mcpb` from [Releases](https://github.com/sorglos-it/synology-calendar-mcp/releases), or build it yourself (see below).
+1. Grab `synology-calendar-1.1.2.mcpb` from [Releases](https://github.com/sorglos-it/synology-calendar-mcp/releases), or build it yourself (see below).
 2. Claude Desktop → **Settings → Extensions → Advanced settings → Install extension…**, pick the file. Drag and drop onto the extensions window works too.
 3. Fill in the fields (see next section) and enable the extension.
 4. Ask Claude something like *"which calendars do I have?"*.
@@ -45,6 +45,7 @@ See also **[synology-contacts-mcp](https://github.com/sorglos-it/synology-contac
 | **Benutzername** | DSM login name of the user who owns the calendars |
 | **Passwort** | DSM password; stored in the OS keychain, never in the package |
 | **Zertifikat prüfen** | Leave **off** while the NAS uses its self-signed certificate. Turn on for a real certificate (e.g. Let's Encrypt). |
+| **Zeitlimit pro Anfrage** | Seconds allowed per request, default 45. Leave it alone unless the NAS is slow enough to run into it. |
 
 The labels are German because the extension manifest is; the fields behave exactly as described above.
 
@@ -66,7 +67,7 @@ The labels are German because the extension manifest is; the fields behave exact
 ## How it works
 
 1. Claude Desktop starts `index.js` with the configured fields as environment variables.
-2. The wrapper builds `CALDAV_BASE_URL` from host name and protocol switch — scheme, host, port, nothing else. Unlike CardDAV, the CalDAV path is discovered by the client, so no path is appended.
+2. The wrapper builds `CALDAV_BASE_URL` from host name and protocol switch and appends the CalDAV path `/caldav/`. ts-caldav can find that path by itself on most servers, but not on DSM: its well-known probe uses GET where DSM only answers OPTIONS, and its fallback candidates carry no trailing slash where DSM insists on one. Discovery would fall back to the bare origin, DSM serves the web UI there, and no principal is ever found.
 3. With certificate checking off, `NODE_TLS_REJECT_UNAUTHORIZED=0` is set before anything connects.
 4. The bundled [caldav-mcp](https://github.com/dominik1001/caldav-mcp) server takes over, verifies the connection once at startup and exposes the ten tools over stdio.
 
@@ -78,12 +79,13 @@ The labels are German because the extension manifest is; the fields behave exact
 - **The connection is checked at startup.** A wrong password or an unreachable NAS makes the server exit immediately rather than fail on first use — look for "Failed to connect to CalDAV server" in the extension log.
 - **Certificate checking off means exactly that.** It disables TLS verification for the whole Node process. It is the right setting for a NAS with a self-signed certificate on your own LAN, and the wrong one over the open internet.
 - **The German field labels are not a bug**, just the language the manifest was written in.
+- **DSM is slow to authenticate.** The first authenticated request of a session regularly takes five seconds or more, later ones come from its session cache in milliseconds. ts-caldav hardcodes a 5000 ms timeout that caldav-mcp never overrides, so the wrapper raises it to 45 s before the server starts. The **Zeitlimit pro Anfrage** field changes that; it reaches the wrapper as `CALDAV_TIMEOUT`, in seconds, and a blank or unparsable value falls back to 45 rather than stopping the server. A NAS that needs several seconds per request on every call is worth looking at on the DSM side — a directory-service lookup running into its own timeout produces exactly that pattern.
 
 ## Building the .mcpb yourself
 
 ```bash
 npm install --prefix server --omit=dev
-npx @anthropic-ai/mcpb pack . synology-calendar-1.1.0.mcpb
+npx @anthropic-ai/mcpb pack . synology-calendar-1.1.2.mcpb
 ```
 
 `server/` holds the unmodified caldav-mcp package; only its `node_modules` are left out of this repository. To move to a newer caldav-mcp, replace the contents of `server/` and bump the version in `manifest.json`.
