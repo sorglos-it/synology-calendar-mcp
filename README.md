@@ -31,7 +31,7 @@ See also **[synology-contacts-mcp](https://github.com/sorglos-it/synology-contac
 
 ## Installation
 
-1. Grab `synology-calendar-1.1.2.mcpb` from [Releases](https://github.com/sorglos-it/synology-calendar-mcp/releases), or build it yourself (see below).
+1. Grab `synology-calendar-1.1.3.mcpb` from [Releases](https://github.com/sorglos-it/synology-calendar-mcp/releases), or build it yourself (see below).
 2. Claude Desktop → **Settings → Extensions → Advanced settings → Install extension…**, pick the file. Drag and drop onto the extensions window works too.
 3. Fill in the fields (see next section) and enable the extension.
 4. Ask Claude something like *"which calendars do I have?"*.
@@ -69,7 +69,7 @@ The labels are German because the extension manifest is; the fields behave exact
 1. Claude Desktop starts `index.js` with the configured fields as environment variables.
 2. The wrapper builds `CALDAV_BASE_URL` from host name and protocol switch and appends the CalDAV path `/caldav/`. ts-caldav can find that path by itself on most servers, but not on DSM: its well-known probe uses GET where DSM only answers OPTIONS, and its fallback candidates carry no trailing slash where DSM insists on one. Discovery would fall back to the bare origin, DSM serves the web UI there, and no principal is ever found.
 3. With certificate checking off, `NODE_TLS_REJECT_UNAUTHORIZED=0` is set before anything connects.
-4. The bundled [caldav-mcp](https://github.com/dominik1001/caldav-mcp) server takes over, verifies the connection once at startup and exposes the ten tools over stdio.
+4. The bundled [caldav-mcp](https://github.com/dominik1001/caldav-mcp) server takes over, exposes the ten tools over stdio and answers the MCP handshake immediately. The NAS is contacted on the first tool call, not at startup.
 
 `CALDAV_BASE_URL` is still honoured if you set it directly, and wins over the host name — useful for a server that lives behind a path.
 
@@ -94,7 +94,7 @@ node index.js
 ## Notes & caveats
 
 - **Shared calendars can be read-only.** Synology hands out team calendars without write privileges in some configurations; writes then fail with HTTP 403.
-- **The connection is checked at startup.** A wrong password or an unreachable NAS makes the server exit immediately rather than fail on first use — look for "Failed to connect to CalDAV server" in the extension log.
+- **The connection is opened on first use, not at startup.** A wrong password or an unreachable NAS therefore surfaces as an error on the tool that needed it, and the next call tries again. Up to and including 1.1.2 the server connected before it spoke MCP, so a NAS that stayed quiet for a minute cost the whole handshake and Claude Desktop reported *"Verbindung zum Erweiterungs-Server nicht möglich"* — an extension that looked broken while only the NAS was slow.
 - **Certificate checking off means exactly that.** It disables TLS verification for the whole Node process. It is the right setting for a NAS with a self-signed certificate on your own LAN, and the wrong one over the open internet.
 - **The German field labels are not a bug**, just the language the manifest was written in.
 - **DSM is slow to authenticate.** The first authenticated request of a session regularly takes five seconds or more, later ones come from its session cache in milliseconds. ts-caldav hardcodes a 5000 ms timeout that caldav-mcp never overrides, so the wrapper raises it to 45 s before the server starts. The **Zeitlimit pro Anfrage** field changes that; it reaches the wrapper as `CALDAV_TIMEOUT`, in seconds, and a blank or unparsable value falls back to 45 rather than stopping the server. A NAS that needs several seconds per request on every call is worth looking at on the DSM side — a directory-service lookup running into its own timeout produces exactly that pattern.
@@ -103,14 +103,14 @@ node index.js
 
 ```bash
 npm install --prefix server --omit=dev
-npx @anthropic-ai/mcpb pack . synology-calendar-1.1.2.mcpb
+npx @anthropic-ai/mcpb pack . synology-calendar-1.1.3.mcpb
 ```
 
-`server/` holds the unmodified caldav-mcp package; only its `node_modules` are left out of this repository. To move to a newer caldav-mcp, replace the contents of `server/` and bump the version in `manifest.json`.
+`server/` holds the caldav-mcp package; only its `node_modules` are left out of this repository. Two files differ from upstream: `server/dist/index.js` builds the CalDAV client lazily instead of before the MCP handshake, and `server/dist/tools/list-calendars.js` fetches the calendar list per call instead of once at registration. Both changes are commented in place. To move to a newer caldav-mcp, replace the contents of `server/`, re-apply those two changes and bump the version in `manifest.json`.
 
 ## Credits
 
-Built around [caldav-mcp](https://github.com/dominik1001/caldav-mcp) by Dominik Grusemann (MIT), bundled unmodified.
+Built around [caldav-mcp](https://github.com/dominik1001/caldav-mcp) by Dominik Grusemann (MIT), bundled with the two startup changes described under *Building the .mcpb yourself*.
 
 ## Support this project ❤️
 
