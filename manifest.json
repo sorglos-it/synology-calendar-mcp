@@ -1,0 +1,98 @@
+{
+  "manifest_version": "0.2",
+  "name": "synology-calendar",
+  "display_name": "Synology Kalender",
+  "version": "1.1.0",
+  "description": "Termine und Aufgaben eines Synology-NAS über CalDAV lesen und schreiben.",
+  "long_description": "Verbindet Claude mit der Kalender-App eines Synology-NAS (oder jedem anderen CalDAV-Server).\n\n**Funktionen**\n• Kalender auflisten, Termine im Zeitraum abfragen\n• Termine anlegen, ändern, löschen — inklusive ganztägig und Wiederholungsregeln\n• Aufgaben (VTODO) anlegen, ändern, abhaken, löschen\n\n**Datenschutz**\nDer Server läuft ausschließlich lokal auf diesem Rechner und spricht direkt mit dem NAS. Es werden keine Daten an Dritte gesendet. Das Passwort wird von Claude Desktop im Schlüsselspeicher des Betriebssystems abgelegt und ist nicht Teil dieses Pakets.\n\n**Voraussetzungen**\n• Erreichbares Synology-NAS mit aktivierter Kalender-App und CalDAV-Dienst\n• Bei selbstsigniertem Zertifikat (Synology-Standard): Option \"Zertifikat prüfen\" ausgeschaltet lassen\n\nBasiert auf caldav-mcp von Dominik Grusemann (MIT).",
+  "author": {
+    "name": "Thomas Weirich"
+  },
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/index.js"
+      ],
+      "env": {
+        "CALDAV_HOST": "${user_config.host}",
+        "CALDAV_HTTPS": "${user_config.use_https}",
+        "CALDAV_USERNAME": "${user_config.username}",
+        "CALDAV_PASSWORD": "${user_config.password}",
+        "CALDAV_VERIFY_SSL": "${user_config.verify_ssl}"
+      }
+    }
+  },
+  "user_config": {
+    "host": {
+      "type": "string",
+      "title": "NAS-Adresse",
+      "description": "Nur der Name oder die IP des NAS, z. B. nas.example.com — ohne https:// und ohne Pfad. Abweichender Port als nas.example.com:5001. Den CalDAV-Pfad findet die Extension selbst.",
+      "required": true
+    },
+    "use_https": {
+      "type": "boolean",
+      "title": "HTTPS verwenden",
+      "description": "Eingeschaltet: https, Standard-Port 5001. Ausgeschaltet: http, Standard-Port 5000. Das sind die DSM-Vorgaben; ein abweichender Port gehört hinter den Namen im Feld darüber.",
+      "required": false,
+      "default": true
+    },
+    "username": {
+      "type": "string",
+      "title": "Benutzername",
+      "description": "DSM-Anmeldename des Benutzers, dem die Kalender gehören",
+      "required": true
+    },
+    "password": {
+      "type": "string",
+      "title": "Passwort",
+      "description": "Passwort des DSM-Benutzers. Wird im Schlüsselspeicher des Betriebssystems abgelegt.",
+      "required": true,
+      "sensitive": true
+    },
+    "verify_ssl": {
+      "type": "boolean",
+      "title": "Zertifikat prüfen",
+      "description": "Bei einem NAS mit selbstsigniertem Zertifikat (Synology-Standard) ausgeschaltet lassen. Einschalten, wenn das NAS ein gültiges Zertifikat (z. B. Let's Encrypt) hat.",
+      "required": false,
+      "default": false
+    }
+  },
+  "tools": [
+    { "name": "list-calendars", "description": "Alle Kalender mit Name und URL auflisten" },
+    { "name": "list-events", "description": "Termine in einem Zeitraum auflisten" },
+    { "name": "create-event", "description": "Termin anlegen (auch ganztägig oder wiederkehrend)" },
+    { "name": "update-event", "description": "Bestehenden Termin ändern" },
+    { "name": "delete-event", "description": "Termin löschen" },
+    { "name": "list-todos", "description": "Aufgaben auflisten, wahlweise nach Status gefiltert" },
+    { "name": "create-todo", "description": "Aufgabe anlegen" },
+    { "name": "update-todo", "description": "Aufgabe ändern" },
+    { "name": "complete-todo", "description": "Aufgabe als erledigt markieren" },
+    { "name": "delete-todo", "description": "Aufgabe löschen" }
+  ],
+  "keywords": [
+    "calendar",
+    "caldav",
+    "synology",
+    "nas",
+    "kalender",
+    "termine",
+    "aufgaben",
+    "todo"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": [
+      "win32",
+      "darwin",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}

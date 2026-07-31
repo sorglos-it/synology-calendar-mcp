@@ -1,0 +1,9 @@
+{
+  "name": "synology-calendar-extension",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Claude Desktop extension wrapping caldav-mcp for Synology Calendar",
+  "main": "index.js",
+  "license": "MIT"
+}
