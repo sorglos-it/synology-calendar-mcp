@@ -46,6 +46,40 @@ function connect() {
     return connection;
 }
 /*
+ * Turns the calendar URL of a tool call into an absolute one.
+ *
+ * list-calendars hands out bare paths - ts-caldav strips its calendar URLs to
+ * the pathname - and axios resolves a relative URL against the *base URL*, not
+ * against the origin. With a base of "https://nas:5001/caldav/" a calendar at
+ * "/caldav.php/user/home/" therefore ends up as
+ * "https://nas:5001/caldav/caldav.php/user/home/", which is not where DSM keeps
+ * it. Reads die on that: getComponents() sends the REPORT without absolutizing
+ * and turns every failure into "Failed to retrieve vevents from the CalDAV
+ * server". Writes reach the NAS despite the doubled prefix, but they take the
+ * same unresolved path, so this runs for all of them rather than only for the
+ * two list tools.
+ *
+ * Every client method takes the calendar URL first, so only args[0] is touched,
+ * and only when it is a path - an absolute URL is already what we want, and a
+ * relative one would be too ambiguous to repair here.
+ */
+function absolutizeCalendarUrl(args) {
+    const [url] = args;
+    if (typeof url !== "string" || !url.startsWith("/"))
+        return args;
+    const base = process.env.CALDAV_BASE_URL;
+    if (!base)
+        return args;
+    try {
+        return [new URL(url, base).toString(), ...args.slice(1)];
+    }
+    catch {
+        // A base URL that does not parse is the connect() error to report, not
+        // something to fail on here.
+        return args;
+    }
+}
+/*
  * Stands in for the real client while the tools are registered. Every tool uses
  * it the same way - "await client.someMethod(...)" - so forwarding methods is
  * enough and the tool files stay untouched.
@@ -58,7 +92,7 @@ const client = new Proxy({}, {
             return undefined;
         return async (...args) => {
             const caldav = await connect();
-            return caldav[method](...args);
+            return caldav[method](...absolutizeCalendarUrl(args));
         };
     },
 });

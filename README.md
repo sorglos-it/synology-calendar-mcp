@@ -31,7 +31,7 @@ See also **[synology-contacts-mcp](https://github.com/sorglos-it/synology-contac
 
 ## Installation
 
-1. Grab `synology-calendar-1.1.3.mcpb` from [Releases](https://github.com/sorglos-it/synology-calendar-mcp/releases), or build it yourself (see below).
+1. Grab `synology-calendar-1.1.4.mcpb` from [Releases](https://github.com/sorglos-it/synology-calendar-mcp/releases), or build it yourself (see below).
 2. Claude Desktop → **Settings → Extensions → Advanced settings → Install extension…**, pick the file. Drag and drop onto the extensions window works too.
 3. Fill in the fields (see next section) and enable the extension.
 4. Ask Claude something like *"which calendars do I have?"*.
@@ -95,6 +95,7 @@ node index.js
 
 - **Shared calendars can be read-only.** Synology hands out team calendars without write privileges in some configurations; writes then fail with HTTP 403.
 - **The connection is opened on first use, not at startup.** A wrong password or an unreachable NAS therefore surfaces as an error on the tool that needed it, and the next call tries again. Up to and including 1.1.2 the server connected before it spoke MCP, so a NAS that stayed quiet for a minute cost the whole handshake and Claude Desktop reported *"Verbindung zum Erweiterungs-Server nicht möglich"* — an extension that looked broken while only the NAS was slow.
+- **Calendar URLs are absolutized before every request.** `list-calendars` returns bare paths — ts-caldav strips its calendar URLs to the pathname — and axios resolves a relative URL against the base URL rather than the origin, so `/caldav.php/user/home/` became `https://nas:5001/caldav/caldav.php/user/home/`. Reads died on it: `getComponents()` sends its REPORT without absolutizing and reports every failure as *"Failed to retrieve vevents from the CalDAV server"*, which is what 1.1.3 and earlier did for `list-events` and `list-todos` while writes still went through. The wrapper in `server/dist/index.js` now resolves the URL for every client call, so passing a full `https://nas:5001/caldav.php/...` URL by hand is no longer needed.
 - **Certificate checking off means exactly that.** It disables TLS verification for the whole Node process. It is the right setting for a NAS with a self-signed certificate on your own LAN, and the wrong one over the open internet.
 - **The German field labels are not a bug**, just the language the manifest was written in.
 - **DSM is slow to authenticate.** The first authenticated request of a session regularly takes five seconds or more, later ones come from its session cache in milliseconds. ts-caldav hardcodes a 5000 ms timeout that caldav-mcp never overrides, so the wrapper raises it to 45 s before the server starts. The **Zeitlimit pro Anfrage** field changes that; it reaches the wrapper as `CALDAV_TIMEOUT`, in seconds, and a blank or unparsable value falls back to 45 rather than stopping the server. A NAS that needs several seconds per request on every call is worth looking at on the DSM side — a directory-service lookup running into its own timeout produces exactly that pattern.
@@ -103,10 +104,10 @@ node index.js
 
 ```bash
 npm install --prefix server --omit=dev
-npx @anthropic-ai/mcpb pack . synology-calendar-1.1.3.mcpb
+npx @anthropic-ai/mcpb pack . synology-calendar-1.1.4.mcpb
 ```
 
-`server/` holds the caldav-mcp package; only its `node_modules` are left out of this repository. Two files differ from upstream: `server/dist/index.js` builds the CalDAV client lazily instead of before the MCP handshake, and `server/dist/tools/list-calendars.js` fetches the calendar list per call instead of once at registration. Both changes are commented in place. To move to a newer caldav-mcp, replace the contents of `server/`, re-apply those two changes and bump the version in `manifest.json`.
+`server/` holds the caldav-mcp package; only its `node_modules` are left out of this repository. Two files differ from upstream: `server/dist/index.js` builds the CalDAV client lazily instead of before the MCP handshake and absolutizes the calendar URL of every client call, and `server/dist/tools/list-calendars.js` fetches the calendar list per call instead of once at registration. All three changes are commented in place. To move to a newer caldav-mcp, replace the contents of `server/`, re-apply those changes and bump the version in `manifest.json`.
 
 ## Credits
 
