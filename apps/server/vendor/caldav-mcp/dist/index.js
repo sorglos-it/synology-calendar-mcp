@@ -59,25 +59,43 @@ function connect() {
  * same unresolved path, so this runs for all of them rather than only for the
  * two list tools.
  *
- * Every client method takes the calendar URL first, so only args[0] is touched,
- * and only when it is a path - an absolute URL is already what we want, and a
- * relative one would be too ambiguous to repair here.
+ * Every client method takes the calendar URL first, so only args[0] is touched.
+ *
+ * It also has to stay on the NAS. Every request carries the DSM password in
+ * its Authorization header, so a calendarUrl like "https://elsewhere/",
+ * "//elsewhere/" or "/\elsewhere/" - one prompt injection in an event text
+ * away - would hand the password to that host. Any URL whose origin is not the
+ * base URL's is refused before a request is made.
+ *
+ * A "?" or "#" is refused as well: ts-caldav appends "/<uid>.ics" to the
+ * calendar URL, and behind a "?" or "#" that part stops being path - the
+ * DELETE of one event would go to the calendar itself.
  */
 function absolutizeCalendarUrl(args) {
     const [url] = args;
-    if (typeof url !== "string" || !url.startsWith("/"))
+    if (typeof url !== "string")
         return args;
-    const base = process.env.CALDAV_BASE_URL;
-    if (!base)
-        return args;
+    let base;
     try {
-        return [new URL(url, base).toString(), ...args.slice(1)];
+        base = new URL(process.env.CALDAV_BASE_URL || "");
     }
     catch {
-        // A base URL that does not parse is the connect() error to report, not
-        // something to fail on here.
-        return args;
+        throw new Error(`The NAS address is not valid (${process.env.CALDAV_BASE_URL || "empty"}). Check the NAS address: a name or IP, optionally followed by :port.`);
     }
+    let target;
+    try {
+        target = new URL(url, base);
+    }
+    catch {
+        throw new Error(`Not a calendar URL: ${url}`);
+    }
+    if (target.origin !== base.origin) {
+        throw new Error(`Refused: ${url} is not on the NAS (${base.origin}). Use a calendar URL from list-calendars.`);
+    }
+    if (/[?#]/.test(target.href)) {
+        throw new Error(`Refused: ${url} contains "?" or "#". Use a calendar URL from list-calendars.`);
+    }
+    return [target.toString(), ...args.slice(1)];
 }
 /*
  * Stands in for the real client while the tools are registered. Every tool uses
@@ -91,8 +109,9 @@ const client = new Proxy({}, {
         if (typeof method === "symbol" || method === "then")
             return undefined;
         return async (...args) => {
+            const checked = absolutizeCalendarUrl(args);
             const caldav = await connect();
-            return caldav[method](...absolutizeCalendarUrl(args));
+            return caldav[method](...checked);
         };
     },
 });

@@ -2,9 +2,9 @@
   "manifest_version": "0.2",
   "name": "synology-calendar",
   "display_name": "Synology Kalender",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Termine und Aufgaben eines Synology-NAS über CalDAV lesen und schreiben.",
-  "long_description": "Verbindet Claude mit der Kalender-App eines Synology-NAS (oder jedem anderen CalDAV-Server).\n\n**Funktionen**\n• Kalender auflisten, Termine im Zeitraum abfragen\n• Termine anlegen, ändern, löschen — inklusive ganztägig und Wiederholungsregeln\n• Aufgaben (VTODO) anlegen, ändern, abhaken, löschen\n\n**Datenschutz**\nDer Server läuft ausschließlich lokal auf diesem Rechner und spricht direkt mit dem NAS. Es werden keine Daten an Dritte gesendet. Das Passwort wird von Claude Desktop im Schlüsselspeicher des Betriebssystems abgelegt und ist nicht Teil dieses Pakets.\n\n**Voraussetzungen**\n• Erreichbares Synology-NAS mit aktivierter Kalender-App und CalDAV-Dienst\n• Bei selbstsigniertem Zertifikat (Synology-Standard): Option \"Zertifikat prüfen\" ausgeschaltet lassen\n\nBasiert auf caldav-mcp von Dominik Grusemann (MIT).",
+  "long_description": "Verbindet Claude mit der Kalender-App eines Synology-NAS (oder jedem anderen CalDAV-Server).\n\n**Funktionen**\n• Kalender auflisten, Termine im Zeitraum abfragen\n• Termine anlegen, ändern, löschen — inklusive ganztägig und Wiederholungsregeln\n• Aufgaben (VTODO) anlegen, ändern, abhaken, löschen\n\n**Datenschutz**\nDer Server läuft ausschließlich lokal auf diesem Rechner und spricht direkt mit dem NAS. Es werden keine Daten an Dritte gesendet. Das Passwort wird von Claude Desktop im Schlüsselspeicher des Betriebssystems abgelegt und ist nicht Teil dieses Pakets.\n\n**Voraussetzungen**\n• Erreichbares Synology-NAS mit aktivierter Kalender-App und CalDAV-Dienst\n• \"Zertifikat prüfen\" ist ab Werk eingeschaltet und schützt so das Passwort. Hat das NAS noch sein selbstsigniertes Zertifikat (Synology-Standard): im DSM ein gültiges einrichten (z. B. Let's Encrypt) oder die Option ausschalten – dann nur im eigenen Heimnetz nutzen\n\nBasiert auf caldav-mcp von Dominik Grusemann (MIT).",
   "author": {
     "name": "Sorglos Thomas Weirich"
   },
@@ -37,7 +37,7 @@
     "use_https": {
       "type": "boolean",
       "title": "HTTPS verwenden",
-      "description": "Eingeschaltet: https, Standard-Port 5001. Ausgeschaltet: http, Standard-Port 5000. Das sind die DSM-Vorgaben; ein abweichender Port gehört hinter den Namen im Feld darüber.",
+      "description": "Eingeschaltet: https, Standard-Port 5001. Ausgeschaltet: http, Standard-Port 5000 – dann geht das Passwort unverschlüsselt über das Netz. Ein abweichender Port gehört hinter den Namen im Feld darüber.",
       "required": false,
       "default": true
     },
@@ -57,9 +57,9 @@
     "verify_ssl": {
       "type": "boolean",
       "title": "Zertifikat prüfen",
-      "description": "Bei einem NAS mit selbstsigniertem Zertifikat (Synology-Standard) ausgeschaltet lassen. Einschalten, wenn das NAS ein gültiges Zertifikat (z. B. Let's Encrypt) hat.",
+      "description": "Eingeschaltet lassen: Es schützt das DSM-Passwort vor Mitlesern. Dafür braucht das NAS ein gültiges Zertifikat (z. B. Let's Encrypt, im DSM unter Systemsteuerung › Sicherheit › Zertifikat). Nur bei selbstsigniertem Zertifikat (Synology-Standard) ausschalten – und dann nur im eigenen Heimnetz.",
       "required": false,
-      "default": false
+      "default": true
     },
     "timeout": {
       "type": "number",

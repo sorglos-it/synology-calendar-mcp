@@ -34,16 +34,18 @@ with Claude Desktop, and all dependencies are inside the `.mcpb`.
 Install the new `.mcpb` the same way; it replaces the old one.
 **Once, for bundles built after 22 Sep 2026:** the author name changed, so Claude Desktop sees a new
 extension. Uninstall the old *Synology Calendar* extension first (*Settings → Extensions*), then install the new one and fill in the fields again.
+**From 1.1.5, *Zertifikat prüfen* is on.** A NAS still on its self-signed certificate needs a valid one (DSM →
+*Control Panel → Security → Certificate*, e.g. Let's Encrypt), or the switch goes off — on your own network only.
 
 ## Configuration
 
 | Field | Meaning |
 |---|---|
 | **NAS-Adresse** | Host name or IP only, e.g. `nas.example.com`. No `https://`, no path. A non-standard port goes here as `nas.example.com:8443`. |
-| **HTTPS verwenden** | On → `https`, default port 5001. Off → `http`, default port 5000. These are the DSM defaults. |
+| **HTTPS verwenden** | On → `https`, default port 5001. Off → `http`, default port 5000, and the password crosses the network unencrypted. These are the DSM defaults. |
 | **Benutzername** | DSM login name of the user who owns the calendars |
 | **Passwort** | DSM password; stored in the OS keychain, never in the package |
-| **Zertifikat prüfen** | Leave **off** while the NAS uses its self-signed certificate. Turn on for a real certificate (e.g. Let's Encrypt). |
+| **Zertifikat prüfen** | **On** by default: the extension only talks to a NAS whose certificate is valid for the name entered above, so nobody in between can pose as the NAS and read the password. Needs a real certificate on the NAS (e.g. Let's Encrypt). Switch off only for a NAS on its self-signed certificate, and only on your own network. |
 | **Zeitlimit pro Anfrage** | Seconds allowed per request, default 45. Leave it alone unless the NAS is slow enough to run into it. |
 
 The labels are German because the extension manifest is; the fields behave exactly as described above.
@@ -72,8 +74,15 @@ manual `NODE_TLS_REJECT_UNAUTHORIZED` fiddling.
 
 - **Runs locally.** The server talks to your NAS directly; nothing is sent to a third party. Claude Desktop stores the
   password in the OS keychain — there are no credentials in the package.
-- **Certificate checking off means exactly that.** It disables TLS verification for the whole Node process. It is the
-  right setting for a NAS with a self-signed certificate on your own LAN, and the wrong one over the open internet.
+- **Certificate checking protects the password.** It is on by default since 1.1.5. Switched off, it disables TLS
+  verification for the whole Node process, and anyone between your computer and the NAS can pose as the NAS and read
+  the DSM password — acceptable on your own LAN with a self-signed NAS, wrong anywhere else. Certificates trusted by
+  the operating system count too (Node.js 22.19 / 24.5 or newer). A rejected certificate is reported with the reason
+  and both ways out.
+- **Calendar URLs stay on the NAS.** Every request carries the DSM password, so a calendar URL on another host is
+  refused before anything is sent — otherwise one prompt injection in an event text would be enough to leak it. A
+  calendar URL with `?` or `#`, and event or todo uids with `/`, `\`, `?`, `#` or `%`, are refused as well: they could
+  address the whole calendar or objects in other calendars.
 - **Shared calendars can be read-only.** Synology hands out team calendars without write privileges in some
   configurations; writes then fail with HTTP 403.
 - **The connection is opened on first use, not at startup.** A wrong password or an unreachable NAS therefore surfaces
@@ -124,7 +133,9 @@ How it works:
    ts-caldav can find that path by itself on most servers, but not on DSM: its well-known probe uses GET where DSM
    only answers OPTIONS, and its fallback candidates carry no trailing slash where DSM insists on one. Discovery would
    fall back to the bare origin, DSM serves the web UI there, and no principal is ever found.
-3. With certificate checking off, `NODE_TLS_REJECT_UNAUTHORIZED=0` is set before anything connects.
+3. With certificate checking off, `NODE_TLS_REJECT_UNAUTHORIZED=0` is set before anything connects. ts-caldav's
+   discovery probes run only when the base URL answers with an error, so an unreachable NAS costs one request timeout,
+   not eight.
 4. The bundled [caldav-mcp](https://github.com/dominik1001/caldav-mcp) server takes over, exposes the ten tools over
    stdio and answers the MCP handshake immediately. The NAS is contacted on the first tool call, not at startup.
 
@@ -140,7 +151,7 @@ node apps/server/index.js
 | `CALDAV_HTTPS` | `true` (default) → https + port 5001, `false` → http + port 5000 |
 | `CALDAV_USERNAME` | DSM login name |
 | `CALDAV_PASSWORD` | DSM password |
-| `CALDAV_VERIFY_SSL` | `false` for a self-signed certificate |
+| `CALDAV_VERIFY_SSL` | `true` (default) checks the certificate; `false` only for a self-signed NAS on your own network |
 | `CALDAV_TIMEOUT` | Seconds per request, default `45`. Blank or unparsable falls back to the default. |
 | `CALDAV_BASE_URL` | Legacy: a complete endpoint URL, wins over `CALDAV_HOST` — useful for a server that lives behind a path |
 

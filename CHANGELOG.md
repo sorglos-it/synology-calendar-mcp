@@ -1,7 +1,26 @@
 # Changelog
 
-## Unreleased – 2026-09-22
+## 1.1.5 – 2026-09-22
 
+- **Certificate checking is on by default** (*Zertifikat prüfen*): it keeps the DSM password from being intercepted.
+  A NAS still on its self-signed certificate needs a valid one (e.g. Let's Encrypt) or the switch turned off — on your
+  own network only. A rejected certificate is reported with the reason in plain words and both ways out instead of
+  axios' bare *"self-signed certificate"*. Certificates trusted by the operating system count as well (Node.js 22.19 /
+  24.5 or newer).
+- **The DSM password stays on the NAS.** A calendar URL on another host — `https://elsewhere/`, `//elsewhere/` — was
+  requested with the password in its Authorization header; one prompt injection in an event text was enough. Such
+  URLs are now refused before anything is sent, and so is a calendar URL with `?` or `#`, behind which the delete of
+  one event went to the whole calendar.
+- **A uid can no longer leave its calendar.** Uids are chosen by whoever created the event, and one with `/`, `\`, `?`,
+  `#` or `%` could make `delete-event` remove an object in another calendar or address the calendar itself. Such uids
+  are refused.
+- **An unreachable NAS costs one request timeout instead of eight.** Discovery asks the configured address first and
+  probes `/.well-known/caldav` and five guessed paths only when that address answers with an error — six minutes at
+  45 s before.
+- A password with characters outside Latin-1 (€) no longer stops the connection, and umlauts are sent as UTF-8, like
+  the contacts extension does.
+- The **HTTPS verwenden** description says that switching it off sends the password unencrypted.
+- First release since 1.1.2: it also carries the fixes of 1.1.3 and 1.1.4, which were never released on their own.
 - Author is now „Sorglos Thomas Weirich“. Claude Desktop derives the extension's identity from it:
   uninstall the old extension once before installing this version, then enter the settings again.
 - Project layout follows the project standard: the extension lives in `apps/server/` (`index.js`, `package.json`,
@@ -16,12 +35,12 @@
 ## 1.1.4 – 2026-08-11
 
 - Calendar URLs are made absolute before every request. `list-events` and `list-todos` failed with *"Failed to
-  retrieve vevents from the CalDAV server"* in 1.1.3 and earlier. Not published as a release yet.
+  retrieve vevents from the CalDAV server"* in 1.1.3 and earlier. Not published as a release; shipped with 1.1.5.
 
 ## 1.1.3 – 2026-07-31
 
 - The connection to the NAS is opened on the first tool call instead of at startup, so a slow NAS no longer breaks the
-  MCP handshake. The calendar list is fetched per call. Not published as a release yet.
+  MCP handshake. The calendar list is fetched per call. Not published as a release; shipped with 1.1.5.
 
 ## 1.1.2 – 2026-07-31
 
