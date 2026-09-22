@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { hrefFor } from "./caldav-href.js";
+import { patchTodo } from "./caldav-ical.js";
+import { findObject, writeObject } from "./caldav-objects.js";
 import { todoStatusSchema } from "./todo-status.js";
 export const updateTodoDefinition = {
     name: "update-todo",
-    description: "Updates an existing task (VTODO) in the calendar specified by its URL. Only provided fields are changed. To mark a task done, prefer the `complete-todo` tool.",
+    description: "Updates an existing task (VTODO) in the calendar specified by its URL. Only provided fields are changed; the repetition rule, categories and everything else of the task stay as they are. To mark a task done, prefer the `complete-todo` tool.",
     inputSchema: {
         uid: z
             .string()
@@ -24,36 +25,24 @@ export function registerUpdateTodo(client, server) {
         inputSchema: updateTodoDefinition.inputSchema,
     }, async (args) => {
         const { uid, calendarUrl, summary, due, start, description, location, status, } = args;
-        const href = hrefFor(calendarUrl, uid);
-        const [existing] = await client.getTodosByHref(calendarUrl, [href]);
-        if (!existing) {
+        const object = await findObject(client, calendarUrl, "VTODO", uid);
+        if (!object) {
             throw new Error(`Todo not found: ${uid}`);
         }
-        // RFC 5545: a COMPLETED VTODO carries a COMPLETED timestamp. Keep status
-        // and that timestamp consistent so updating status here can't leave the
-        // task in the RFC-incomplete state complete-todo guards against. An
-        // existing completion time is preserved (completion happened once);
-        // transitioning away drops it. `completed` is pulled out of `existing`
-        // so the cleared case omits the property entirely rather than setting it
-        // undefined (which exactOptionalPropertyTypes forbids).
-        const { completed: priorCompleted, ...base } = existing;
-        const completed = status === undefined
-            ? priorCompleted
-            : status === "COMPLETED"
-                ? (priorCompleted ?? new Date())
-                : undefined;
-        const updated = await client.updateTodo(calendarUrl, {
-            ...base,
+        // patchTodo keeps STATUS and the COMPLETED timestamp consistent
+        // (RFC 5545): a task that becomes COMPLETED gets one, a task that
+        // leaves that status loses it. An existing one is kept - completion
+        // happened once.
+        await writeObject(client, object, patchTodo(object.ics, {
             ...(summary !== undefined && { summary }),
-            ...(due !== undefined && { due: new Date(due) }),
-            ...(start !== undefined && { start: new Date(start) }),
+            ...(due !== undefined && { due }),
+            ...(start !== undefined && { start }),
             ...(description !== undefined && { description }),
             ...(location !== undefined && { location }),
             ...(status !== undefined && { status }),
-            ...(completed !== undefined && { completed }),
-        });
+        }));
         return {
-            content: [{ type: "text", text: updated.uid }],
+            content: [{ type: "text", text: uid }],
         };
     });
 }

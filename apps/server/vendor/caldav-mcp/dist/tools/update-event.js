@@ -1,23 +1,6 @@
 import { z } from "zod";
-import { hrefFor } from "./caldav-href.js";
-function toRecurrenceRule(r) {
-    const out = {};
-    if (r.freq !== undefined)
-        out.freq = r.freq;
-    if (r.interval !== undefined)
-        out.interval = r.interval;
-    if (r.count !== undefined)
-        out.count = r.count;
-    if (r.until !== undefined)
-        out.until = new Date(r.until);
-    if (r.byday !== undefined)
-        out.byday = r.byday;
-    if (r.bymonthday !== undefined)
-        out.bymonthday = r.bymonthday;
-    if (r.bymonth !== undefined)
-        out.bymonth = r.bymonth;
-    return out;
-}
+import { patchEvent } from "./caldav-ical.js";
+import { findObject, writeObject } from "./caldav-objects.js";
 const recurrenceRuleSchema = z.object({
     freq: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]).optional(),
     interval: z.number().optional(),
@@ -29,7 +12,7 @@ const recurrenceRuleSchema = z.object({
 });
 export const updateEventDefinition = {
     name: "update-event",
-    description: "Updates an existing event in the calendar specified by its URL. Only provided fields are changed. For a one-day full-day event, set `wholeDay` to true and set `start` and `end` to the same calendar day.",
+    description: "Updates an existing event in the calendar specified by its URL. Only provided fields are changed; everything else of the event (attendees, alarms, cancelled or moved dates of a series, time zone) stays as it is. Giving only `start` moves the event and keeps its length. A recurring event is changed as a whole. For a one-day full-day event, set `wholeDay` to true and set `start` and `end` to the same calendar day.",
     inputSchema: {
         uid: z
             .string()
@@ -54,25 +37,23 @@ export function registerUpdateEvent(client, server) {
         inputSchema: updateEventDefinition.inputSchema,
     }, async (args) => {
         const { uid, calendarUrl, summary, start, end, wholeDay, description, location, recurrenceRule, } = args;
-        const href = hrefFor(calendarUrl, uid);
-        const [existing] = await client.getEventsByHref(calendarUrl, [href]);
-        if (!existing) {
+        // The object is changed where it lies instead of being rebuilt from a
+        // handful of fields, which used to drop everything else it held.
+        const object = await findObject(client, calendarUrl, "VEVENT", uid);
+        if (!object) {
             throw new Error(`Event not found: ${uid}`);
         }
-        const updated = await client.updateEvent(calendarUrl, {
-            ...existing,
+        await writeObject(client, object, patchEvent(object.ics, {
             ...(summary !== undefined && { summary }),
-            ...(start !== undefined && { start: new Date(start) }),
-            ...(end !== undefined && { end: new Date(end) }),
+            ...(start !== undefined && { start }),
+            ...(end !== undefined && { end }),
             ...(wholeDay !== undefined && { wholeDay }),
             ...(description !== undefined && { description }),
             ...(location !== undefined && { location }),
-            ...(recurrenceRule !== undefined && {
-                recurrenceRule: toRecurrenceRule(recurrenceRule),
-            }),
-        });
+            ...(recurrenceRule !== undefined && { recurrenceRule }),
+        }));
         return {
-            content: [{ type: "text", text: updated.uid }],
+            content: [{ type: "text", text: uid }],
         };
     });
 }

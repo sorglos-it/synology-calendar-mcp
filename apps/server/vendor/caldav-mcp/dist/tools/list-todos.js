@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { todosOf } from "./caldav-ical.js";
+import { queryObjects } from "./caldav-objects.js";
 import { todoStatusSchema } from "./todo-status.js";
 // `OPEN`/`ALL` are filter keywords expressing sets no single status can (a union
 // and "no filter"); the four raw statuses allow an exact-status query. The raw
@@ -24,8 +26,8 @@ export function compareTodos(a, b) {
     const soB = b.sortOrder ?? Number.POSITIVE_INFINITY;
     if (soA !== soB)
         return soA - soB;
-    const dueA = a.due ? a.due.getTime() : Number.POSITIVE_INFINITY;
-    const dueB = b.due ? b.due.getTime() : Number.POSITIVE_INFINITY;
+    const dueA = a.dueAt ? a.dueAt.getTime() : Number.POSITIVE_INFINITY;
+    const dueB = b.dueAt ? b.dueAt.getTime() : Number.POSITIVE_INFINITY;
     if (dueA !== dueB)
         return dueA - dueB;
     return a.summary.localeCompare(b.summary);
@@ -62,7 +64,7 @@ export const listTodosDefinition = {
             .optional()
             .describe("Tasks to skip (default 0)"),
     },
-    returns: "An object `{ todos, total, limit, offset }` where `total` is the count before pagination. Each todo has `uid`, `summary`, `status`, and optionally `due`, `start`, `completed`, `description`, `location`.",
+    returns: "An object `{ todos, total, limit, offset }` where `total` is the count before pagination. Each todo has `uid`, `summary`, `status`, and optionally `due`, `start`, `completed`, `description`, `location`. A date without a time stays a date (YYYY-MM-DD); everything else is a timestamp.",
 };
 export function registerListTodos(client, server) {
     server.registerTool(listTodosDefinition.name, {
@@ -91,16 +93,20 @@ export function registerListTodos(client, server) {
         const matchesWindow = (t) => {
             if (!hasWindow)
                 return true;
-            if (!t.due)
+            if (!t.dueAt)
                 return false;
-            const d = t.due.getTime();
+            const d = t.dueAt.getTime();
             if (after !== null && d < after)
                 return false;
             if (before !== null && d > before)
                 return false;
             return true;
         };
-        const all = await client.getTodos(calendarUrl, { all: true });
+        // Read from the objects themselves: a due date without a time has to
+        // stay that date, and through ts-caldav's model it became a timestamp
+        // at midnight local time - the day before, seen from UTC.
+        const objects = await queryObjects(client, calendarUrl, "VTODO", null);
+        const all = objects.flatMap((object) => todosOf(object.ics));
         const filtered = all
             .filter((t) => matchesStatus(t) && matchesWindow(t))
             .sort(compareTodos);

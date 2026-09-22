@@ -53,10 +53,14 @@ export function registerCreateEvent(client, server) {
         inputSchema: createEventDefinition.inputSchema,
     }, async (args) => {
         const { calendarUrl, summary, start, end, wholeDay, description, location, recurrenceRule, } = args;
+        // A whole-day event is written from the calendar date the caller named.
+        // Through a Date it would be the UTC date of that moment instead, and
+        // "2026-10-03T00:00:00+02:00" would land on 2 October.
+        const day = (iso) => new Date(`${String(iso).slice(0, 10)}T00:00:00Z`);
         const event = await client.createEvent(calendarUrl, {
             summary: summary,
-            start: new Date(start),
-            end: new Date(end),
+            start: wholeDay ? day(start) : new Date(start),
+            end: wholeDay ? day(end) : new Date(end),
             ...(wholeDay !== undefined && { wholeDay }),
             ...(description !== undefined && { description }),
             ...(location !== undefined && { location }),

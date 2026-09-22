@@ -46,6 +46,8 @@
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.26.0",
+		"fast-xml-parser": "^5.5.6",
+		"ical.js": "^2.2.1",
 		"ts-caldav": "^0.3.6",
 		"zod": "^4.4.3"
 	},

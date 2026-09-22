@@ -60,9 +60,9 @@ manual `NODE_TLS_REJECT_UNAUTHORIZED` fiddling.
 | Tool | Purpose |
 |---|---|
 | `list-calendars` | All calendars with name and URL |
-| `list-events` | Events in a date range |
+| `list-events` | Events in a date range, a recurring one per date it falls on |
 | `create-event` | New event, optionally all-day or recurring |
-| `update-event` | Change an existing event |
+| `update-event` | Change an existing event; everything not passed stays as it is |
 | `delete-event` | Remove an event |
 | `list-todos` | Open todos by default; completed or all on request |
 | `create-todo` | New todo |
@@ -83,6 +83,10 @@ manual `NODE_TLS_REJECT_UNAUTHORIZED` fiddling.
   refused before anything is sent — otherwise one prompt injection in an event text would be enough to leak it. A
   calendar URL with `?` or `#`, and event or todo uids with `/`, `\`, `?`, `#` or `%`, are refused as well: they could
   address the whole calendar or objects in other calendars.
+- **A change edits the object, it does not rebuild it.** Since 1.1.5 an update is written into the iCalendar object
+  the NAS has, so attendees, alarms, time zones, the cancelled and moved dates of a series and a task's repetition
+  rule survive a rename. Before that, every change rebuilt the object from a handful of fields and quietly lost the
+  rest. Whole-day dates stay dates, which is why they no longer slide to the day before.
 - **Shared calendars can be read-only.** Synology hands out team calendars without write privileges in some
   configurations; writes then fail with HTTP 403.
 - **The connection is opened on first use, not at startup.** A wrong password or an unreachable NAS therefore surfaces

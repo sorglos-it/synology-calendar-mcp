@@ -17,6 +17,22 @@
 - **An unreachable NAS costs one request timeout instead of eight.** Discovery asks the configured address first and
   probes `/.well-known/caldav` and five guessed paths only when that address answers with an error — six minutes at
   45 s before.
+- **Changing an appointment or a task no longer throws the rest away.** Both were rebuilt from the handful of fields
+  the CalDAV library knows, so renaming one appointment dropped everything else it carried: a moved date of a series
+  (RECURRENCE-ID), a cancelled date (EXDATE), the attendees and their answers, the time zone, alarms — and a task lost
+  its repetition rule and its categories, which came back as `RRULE:0=F;1=R;…`. Changes are now written into the
+  object the server has, so only what was asked for changes. Moving the start of a series takes its cancelled and
+  moved dates along, and giving only a new start keeps the appointment's length.
+- **Whole-day appointments keep their date.** `2026-10-03` used to become 2 October — the date was read in UTC while
+  Central European Time is two hours ahead — and every further change moved it another day.
+- **`list-events` now lists every date of a recurring appointment** that falls in the period, cancelled dates left
+  out and a moved date at its new time, instead of showing the series once on the day it started. Whole-day
+  appointments come as dates (`2026-09-22`, `end` is the last day) with `wholeDay`, each date of a series as
+  `recurring` with its `recurrenceId`, and the list is sorted by start.
+- **`list-todos`: a deadline without a time stays a date.** It used to arrive as a timestamp at midnight local time,
+  which reads as the day before in UTC.
+- The bundled libraries `fast-uri`, `hono` and `qs` are updated: the versions shipped before had known
+  vulnerabilities. None of them is reachable through this extension, which talks stdio and no HTTP of its own.
 - A password with characters outside Latin-1 (€) no longer stops the connection, and umlauts are sent as UTF-8, like
   the contacts extension does.
 - The **HTTPS verwenden** description says that switching it off sends the password unencrypted.

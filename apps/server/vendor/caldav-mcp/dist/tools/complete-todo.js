@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { hrefFor } from "./caldav-href.js";
+import { patchTodo } from "./caldav-ical.js";
+import { findObject, writeObject } from "./caldav-objects.js";
 export const completeTodoDefinition = {
     name: "complete-todo",
     description: "Marks a task (VTODO) as done. Sets its status to COMPLETED and records the completion time.",
@@ -17,19 +18,16 @@ export function registerCompleteTodo(client, server) {
         inputSchema: completeTodoDefinition.inputSchema,
     }, async (args) => {
         const { uid, calendarUrl } = args;
-        const href = hrefFor(calendarUrl, uid);
-        const [existing] = await client.getTodosByHref(calendarUrl, [href]);
-        if (!existing) {
+        const object = await findObject(client, calendarUrl, "VTODO", uid);
+        if (!object) {
             throw new Error(`Todo not found: ${uid}`);
         }
-        // RFC 5545: a COMPLETED VTODO should carry a COMPLETED timestamp.
-        const updated = await client.updateTodo(calendarUrl, {
-            ...existing,
-            status: "COMPLETED",
-            completed: new Date(),
-        });
+        // RFC 5545: a COMPLETED VTODO carries a COMPLETED timestamp, which
+        // patchTodo adds. Everything else of the task - its repetition rule
+        // above all - stays untouched.
+        await writeObject(client, object, patchTodo(object.ics, { status: "COMPLETED" }));
         return {
-            content: [{ type: "text", text: updated.uid }],
+            content: [{ type: "text", text: uid }],
         };
     });
 }
