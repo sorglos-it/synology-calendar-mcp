@@ -10,10 +10,10 @@ synology-calendar-mcp is MIT-licensed (see [LICENSE](LICENSE)). It ships code fr
 | Origin | [dominik1001/caldav-mcp](https://github.com/dominik1001/caldav-mcp), npm package `caldav-mcp` 0.10.0. The npm package holds only the compiled JavaScript (`dist/`); its TypeScript sources are in the upstream repository. |
 | Copied | 2026-07-31, with extension 1.1.0 |
 | Licence | MIT, © 2025 Dominik Grusemann — [`apps/server/vendor/caldav-mcp/LICENSE`](apps/server/vendor/caldav-mcp/LICENSE) |
-| Own changes | `dist/index.js` (1.1.3, 1.1.4): the CalDAV client is built on the first tool call instead of before the MCP handshake, and every calendar URL is made absolute against the base URL. `dist/tools/list-calendars.js` (1.1.3): the calendar list is fetched per call instead of once at registration. Both are commented in place. All other files are the npm release unchanged (line endings aside). |
+| Own changes | `dist/index.js` (1.1.3, 1.1.4): the CalDAV client is built on the first tool call instead of before the MCP handshake, and every calendar URL is made absolute against the base URL. `dist/tools/list-calendars.js` (1.1.3): the calendar list is fetched per call instead of once at registration. All changes are commented in place. All other files are the npm release unchanged (line endings aside). |
 
 To move to a newer caldav-mcp: replace `dist/`, `package.json`, `README.md` and `LICENSE` with the new release, apply
-the two changes again, update this table, then install the dependencies and build (see README → Development).
+these changes again, update this table, then install the dependencies and build (see README → Development).
 
 ## Dependencies of caldav-mcp
 
