@@ -148,7 +148,7 @@ changes described in [THIRD-PARTY.md](THIRD-PARTY.md).
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE) — © 2026 Thomas Weirich. Third-party code:
+This project is licensed under the [MIT License](LICENSE) — © 2026 Sorglos Thomas Weirich. Third-party code:
 [THIRD-PARTY.md](THIRD-PARTY.md).
 
 ## Donate via PayPal
