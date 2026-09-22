@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { patchTodo } from "./caldav-ical.js";
-import { findObject, writeObject } from "./caldav-objects.js";
+import { damaged, findObject, writeObject } from "./caldav-objects.js";
 export const completeTodoDefinition = {
     name: "complete-todo",
     description: "Marks a task (VTODO) as done. Sets its status to COMPLETED and records the completion time.",
@@ -25,7 +25,7 @@ export function registerCompleteTodo(client, server) {
         // RFC 5545: a COMPLETED VTODO carries a COMPLETED timestamp, which
         // patchTodo adds. Everything else of the task - its repetition rule
         // above all - stays untouched.
-        await writeObject(client, object, patchTodo(object.ics, { status: "COMPLETED" }));
+        await writeObject(client, object, damaged(uid, () => patchTodo(object.ics, { status: "COMPLETED" })));
         return {
             content: [{ type: "text", text: uid }],
         };

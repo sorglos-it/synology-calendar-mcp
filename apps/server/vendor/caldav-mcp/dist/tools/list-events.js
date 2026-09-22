@@ -34,10 +34,25 @@ export function registerListEvents(client, server) {
         // appointment once, on the date it started, which is no answer to
         // "what is on next week".
         const objects = await queryObjects(client, calendarUrl, "VEVENT", { start: from, end: to });
-        const data = objects.flatMap((object) => expandEvents(object.ics, from, to));
+        const data = [];
+        const unreadable = [];
+        for (const object of objects) {
+            // one damaged object must not take the whole calendar with it
+            try {
+                data.push(...expandEvents(object.ics, from, to));
+            }
+            catch (error) {
+                unreadable.push(`${object.href} (${error instanceof Error ? error.message : error})`);
+            }
+        }
         data.sort((a, b) => String(a.start).localeCompare(String(b.start)));
-        return {
-            content: [{ type: "text", text: JSON.stringify(data) }],
-        };
+        const content = [{ type: "text", text: JSON.stringify(data) }];
+        if (unreadable.length > 0) {
+            content.push({
+                type: "text",
+                text: `Note: ${unreadable.length} object(s) in this calendar could not be read and are missing from the list: ${unreadable.join("; ")}`,
+            });
+        }
+        return { content };
     });
 }

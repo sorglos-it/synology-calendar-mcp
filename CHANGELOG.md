@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.6 – 2026-09-23
+
+- **One damaged entry no longer takes the whole calendar with it.** An event without a start date or a truncated
+  object made `list-events` and `list-todos` answer with a parser error and nothing else. Such an object is now left
+  out and named, and a change to one says which entry is at fault.
+- **A series that started years ago is listed again.** Expansion walked at most 5000 dates from the start of the
+  series, so a daily appointment running since 2013 had none left for this week.
+- **A moved date is listed where it now is**, not where it used to be: one moved out of the period no longer appears
+  in it, one moved into it is no longer missing.
+- A whole-day series ends on a date (`UNTIL=20261231`), not at a moment — some servers refuse the timestamp form.
+- Two unrelated appointments stored in one object are both listed again, and an instance carrying a foreign uid can
+  no longer take the place of a real date of a series.
+- An address with `&` in it no longer breaks the request that fetches the entry.
+
 ## 1.1.5 – 2026-09-22
 
 - **Certificate checking is on by default** (*Zertifikat prüfen*): it keeps the DSM password from being intercepted.

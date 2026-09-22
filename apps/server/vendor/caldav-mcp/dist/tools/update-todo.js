@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { patchTodo } from "./caldav-ical.js";
-import { findObject, writeObject } from "./caldav-objects.js";
+import { damaged, findObject, writeObject } from "./caldav-objects.js";
 import { todoStatusSchema } from "./todo-status.js";
 export const updateTodoDefinition = {
     name: "update-todo",
@@ -33,14 +33,14 @@ export function registerUpdateTodo(client, server) {
         // (RFC 5545): a task that becomes COMPLETED gets one, a task that
         // leaves that status loses it. An existing one is kept - completion
         // happened once.
-        await writeObject(client, object, patchTodo(object.ics, {
+        await writeObject(client, object, damaged(uid, () => patchTodo(object.ics, {
             ...(summary !== undefined && { summary }),
             ...(due !== undefined && { due }),
             ...(start !== undefined && { start }),
             ...(description !== undefined && { description }),
             ...(location !== undefined && { location }),
             ...(status !== undefined && { status }),
-        }));
+        })));
         return {
             content: [{ type: "text", text: uid }],
         };

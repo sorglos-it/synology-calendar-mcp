@@ -106,7 +106,17 @@ export function registerListTodos(client, server) {
         // stay that date, and through ts-caldav's model it became a timestamp
         // at midnight local time - the day before, seen from UTC.
         const objects = await queryObjects(client, calendarUrl, "VTODO", null);
-        const all = objects.flatMap((object) => todosOf(object.ics));
+        const all = [];
+        const unreadable = [];
+        for (const object of objects) {
+            // one damaged object must not take the whole task list with it
+            try {
+                all.push(...todosOf(object.ics));
+            }
+            catch (error) {
+                unreadable.push(`${object.href} (${error instanceof Error ? error.message : error})`);
+            }
+        }
         const filtered = all
             .filter((t) => matchesStatus(t) && matchesWindow(t))
             .sort(compareTodos);
@@ -129,6 +139,7 @@ export function registerListTodos(client, server) {
                         total: filtered.length,
                         limit,
                         offset,
+                        ...(unreadable.length > 0 && { unreadable }),
                     }),
                 },
             ],

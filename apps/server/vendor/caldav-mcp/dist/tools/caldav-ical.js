@@ -94,12 +94,13 @@ function stamp(comp) {
 	comp.updatePropertyWithValue("sequence", (Number.isFinite(seq) ? seq : 0) + 1);
 }
 
-function recurFromRule(rule) {
+function recurFromRule(rule, wholeDay) {
 	const parts = [`FREQ=${rule.freq ?? "DAILY"}`];
 	if (rule.interval !== undefined) parts.push(`INTERVAL=${rule.interval}`);
 	if (rule.count !== undefined) parts.push(`COUNT=${rule.count}`);
 	if (rule.until !== undefined) {
-		parts.push(`UNTIL=${asUtc(rule.until).toICALString()}`);
+		// a whole-day series ends on a date, not at a moment (RFC 5545 §3.3.10)
+		parts.push(`UNTIL=${(wholeDay ? asDate(rule.until) : asUtc(rule.until)).toICALString()}`);
 	}
 	if (rule.byday?.length) parts.push(`BYDAY=${rule.byday.join(",")}`);
 	if (rule.bymonthday?.length) parts.push(`BYMONTHDAY=${rule.bymonthday.join(",")}`);
@@ -169,7 +170,10 @@ export function patchEvent(text_, changes) {
 
 	if (recurrenceRule !== undefined) {
 		vevent.removeAllProperties("rrule");
-		if (recurrenceRule) vevent.addPropertyWithValue("rrule", recurFromRule(recurrenceRule));
+		if (recurrenceRule) {
+			const isDate = timeOf(vevent, "dtstart")?.isDate ?? false;
+			vevent.addPropertyWithValue("rrule", recurFromRule(recurrenceRule, isDate));
+		}
 	}
 	stamp(vevent);
 	return cal.toString();
@@ -281,24 +285,42 @@ function eventOut(item, startTime, endTime, recurrenceId) {
 export function expandEvents(text_, from, to, limit = 500) {
 	const cal = parseCalendar(text_);
 	useZones(cal);
-	const parts = cal.getAllSubcomponents("vevent");
-	if (parts.length === 0) return [];
-	const master = parts.find((c) => !c.getFirstProperty("recurrence-id"));
+	// one object can hold several appointments that have nothing to do with
+	// each other; what belongs together shares a uid
+	const groups = new Map();
+	for (const comp of cal.getAllSubcomponents("vevent")) {
+		const uid = String(comp.getFirstPropertyValue("uid") ?? "");
+		groups.set(uid, [...(groups.get(uid) ?? []), comp]);
+	}
+	const out = [];
+	for (const comps of groups.values()) {
+		if (out.length >= limit) break;
+		out.push(...expandOne(comps, from, to, limit - out.length));
+	}
+	return out;
+}
+
+function expandOne(comps, from, to, limit) {
+	const master = comps.find((c) => !c.getFirstProperty("recurrence-id"));
+	const changed = comps.filter((c) => c !== master);
+	const single = (comp) => {
+		const ev = new ICAL.Event(comp);
+		return eventOut(ev, ev.startDate, ev.endDate, ev.recurrenceId);
+	};
 	if (!master) {
 		// only moved instances left in this object
-		return parts.map((c) => {
-			const ev = new ICAL.Event(c);
-			return eventOut(ev, ev.startDate, ev.endDate, ev.recurrenceId);
-		}).filter((o) => overlaps(o, from, to));
+		return changed.map(single).filter((o) => overlaps(o, from, to));
 	}
-	const event = new ICAL.Event(master);
-	for (const c of parts) {
-		if (c !== master) {
-			try {
-				event.relateException(c);
-			} catch {
-				// an instance of another object: it is listed on its own
-			}
+	// The copy has no calendar around it, so ical.js does not relate the
+	// instances by itself; each is offered here and strictExceptions refuses
+	// one that carries a foreign uid - it must not take the place of a real
+	// date of this series.
+	const event = new ICAL.Event(new ICAL.Component(master.toJSON()), { strictExceptions: true });
+	for (const comp of changed) {
+		try {
+			event.relateException(new ICAL.Component(comp.toJSON()));
+		} catch {
+			// belongs to another appointment; it is listed on its own below
 		}
 	}
 	if (!event.isRecurring()) {
@@ -306,16 +328,33 @@ export function expandEvents(text_, from, to, limit = 500) {
 		return overlaps(one, from, to) ? [one] : [];
 	}
 	const out = [];
+	const known = new Set();
 	const iterator = event.iterator();
-	for (let next = iterator.next(), seen = 0; next && seen < 5000; next = iterator.next(), seen++) {
+	// A series can have started years ago and ical.js only walks it date by
+	// date, so the ceiling is a safety net against an endless rule, not a
+	// window: the break below ends the walk at the end of the period.
+	for (let next = iterator.next(), steps = 0; next && steps < 200000; next = iterator.next(), steps++) {
 		if (next.toJSDate() >= to) break;
 		const details = event.getOccurrenceDetails(next);
-		if (details.endDate && details.endDate.toJSDate() <= from) continue;
-		out.push(eventOut(details.item, details.startDate, details.endDate, details.recurrenceId));
-		if (out.length >= limit) break;
+		known.add(details.recurrenceId.toString());
+		const one = eventOut(details.item, details.startDate, details.endDate, details.recurrenceId);
+		// a moved instance can have left the period its original date is in
+		if (overlaps(one, from, to)) out.push(one);
+		if (out.length >= limit) return out;
+	}
+	// ... and one moved into the period from outside it is not on the walk
+	for (const comp of changed) {
+		const one = single(comp);
+		if (one.recurrenceId && known.has(rawRecurrenceId(comp))) continue;
+		if (overlaps(one, from, to) && out.length < limit) out.push(one);
 	}
 	return out;
 }
+
+const rawRecurrenceId = (comp) => {
+	const value = comp.getFirstPropertyValue("recurrence-id");
+	return value ? value.toString() : "";
+};
 
 function overlaps(out, from, to) {
 	const start = new Date(out.wholeDay ? `${out.start}T00:00:00` : out.start);

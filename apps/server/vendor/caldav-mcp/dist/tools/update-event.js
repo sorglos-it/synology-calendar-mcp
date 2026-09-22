@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { patchEvent } from "./caldav-ical.js";
-import { findObject, writeObject } from "./caldav-objects.js";
+import { damaged, findObject, writeObject } from "./caldav-objects.js";
 const recurrenceRuleSchema = z.object({
     freq: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]).optional(),
     interval: z.number().optional(),
@@ -43,7 +43,7 @@ export function registerUpdateEvent(client, server) {
         if (!object) {
             throw new Error(`Event not found: ${uid}`);
         }
-        await writeObject(client, object, patchEvent(object.ics, {
+        await writeObject(client, object, damaged(uid, () => patchEvent(object.ics, {
             ...(summary !== undefined && { summary }),
             ...(start !== undefined && { start }),
             ...(end !== undefined && { end }),
@@ -51,7 +51,7 @@ export function registerUpdateEvent(client, server) {
             ...(description !== undefined && { description }),
             ...(location !== undefined && { location }),
             ...(recurrenceRule !== undefined && { recurrenceRule }),
-        }));
+        })));
         return {
             content: [{ type: "text", text: uid }],
         };

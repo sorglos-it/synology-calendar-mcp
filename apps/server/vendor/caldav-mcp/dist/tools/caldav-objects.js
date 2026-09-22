@@ -51,10 +51,15 @@ export async function queryObjects(client, calendarUrl, component, range) {
 	return parseMultistatus(await client.report(calendarUrl, body, "1"));
 }
 
+/** Text that goes into the request, with the five XML characters escaped. */
+const xml = (value) => String(value)
+	.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+	.replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+
 /** One object by its address. */
 export async function readObject(client, calendarUrl, href) {
 	const body = `<?xml version="1.0" encoding="utf-8"?><c:calendar-multiget ${NS}>${PROPS}`
-		+ `<d:href>${href}</d:href></c:calendar-multiget>`;
+		+ `<d:href>${xml(href)}</d:href></c:calendar-multiget>`;
 	const [found] = parseMultistatus(await client.report(calendarUrl, body, "1"));
 	return found ?? null;
 }
@@ -66,11 +71,32 @@ export async function readObject(client, calendarUrl, href) {
  */
 export async function findObject(client, calendarUrl, component, uid) {
 	const direct = await readObject(client, calendarUrl, hrefFor(calendarUrl, uid));
-	if (direct && uidOf(direct.ics) === uid) return direct;
+	if (direct && idOf(direct) === uid) return direct;
 	for (const object of await queryObjects(client, calendarUrl, component, null)) {
-		if (uidOf(object.ics) === uid) return object;
+		if (idOf(object) === uid) return object;
 	}
 	return null;
+}
+
+/** The uid of an object, or nothing at all if it cannot be read. */
+function idOf(object) {
+	try {
+		return uidOf(object.ics);
+	}
+	catch {
+		return "";
+	}
+}
+
+/** Says which object is at fault when it cannot be read or changed. */
+export function damaged(uid, change) {
+	try {
+		return change();
+	}
+	catch (error) {
+		throw new Error(`${uid} cannot be changed: ${error instanceof Error ? error.message : error}. `
+			+ "The entry on the NAS is damaged; open it in the Synology Calendar app.");
+	}
 }
 
 /** Writes an object back, refusing if it changed on the server meanwhile. */
