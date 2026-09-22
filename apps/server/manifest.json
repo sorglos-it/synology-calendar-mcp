@@ -8,7 +8,7 @@
   "author": {
     "name": "Thomas Weirich"
   },
-  "icon": "icon.png",
+  "icon": "assets/icon.png",
   "server": {
     "type": "node",
     "entry_point": "index.js",

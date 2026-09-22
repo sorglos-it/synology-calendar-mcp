@@ -10,7 +10,7 @@ export async function registerListCalendars(client, server) {
         inputSchema: listCalendarsDefinition.inputSchema,
     }, async () => {
         // Fetched per call rather than once at registration: registration must
-        // not touch the network (see server/dist/index.js), and a calendar
+        // not touch the network (see dist/index.js), and a calendar
         // added on the NAS now shows up without restarting Claude Desktop.
         const calendars = await client.getCalendars();
         return { content: [{ type: "text", text: JSON.stringify(calendars) }] };

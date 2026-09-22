@@ -1,5 +1,32 @@
-server/node_modules/
-node_modules/
+# Erzeugtes
+dist/
+bin/
+obj/
+.pio/
+__pycache__/
 *.mcpb
-.DS_Store
+node_modules/
+
+# Laufzeitdaten - Ausnahme: Firmware-Dateisystem
+apps/*/data/
+!apps/firmware*/data/
+
+# Echte Konfiguration und Secrets - nur *.example kommt ins Repo
+apps/*/config/*
+!apps/*/config/*.example
+apps/firmware*/include/config.h
+.env
+.env.*
+
+# Fremdcode per Paketmanager
+apps/*/vendor/
+# Ausnahme: von Hand kopierter Fremdcode, Herkunft in THIRD-PARTY.md.
+# Seine Abhaengigkeiten (node_modules/) holt npm beim Bauen - nicht im Repo.
+!apps/server/vendor/
+!apps/server/vendor/caldav-mcp/dist/
+
+# Protokolle der Editor-Hooks, Betriebssystem
+receipts/
+review-receipts/
 Thumbs.db
+.DS_Store

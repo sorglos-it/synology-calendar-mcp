@@ -2,7 +2,7 @@
 /**
  * Entry point of the Synology Calendar desktop extension.
  *
- * Thin wrapper around the bundled caldav-mcp server (server/dist/index.js).
+ * Thin wrapper around the bundled caldav-mcp server (vendor/caldav-mcp/dist/index.js).
  * It does two things the bundled server cannot:
  *
  *   1. Claude Desktop can only inject strings into env, while Node expects the
@@ -104,9 +104,9 @@ if (missing.length > 0) {
  * ship inside this package and are pinned together.
  */
 const REQUEST_TIMEOUT_MS = seconds("CALDAV_TIMEOUT", 45) * 1000;
-const tsCaldav = await import("./server/node_modules/ts-caldav/dist/index.mjs");
+const tsCaldav = await import("./vendor/caldav-mcp/node_modules/ts-caldav/dist/index.mjs");
 const createClient = tsCaldav.CalDAVClient.create.bind(tsCaldav.CalDAVClient);
 tsCaldav.CalDAVClient.create = (options) =>
 	createClient({ requestTimeout: REQUEST_TIMEOUT_MS, ...options });
 
-await import("./server/dist/index.js");
+await import("./vendor/caldav-mcp/dist/index.js");
