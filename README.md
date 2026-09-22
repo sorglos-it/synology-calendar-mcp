@@ -8,7 +8,8 @@
 
 Lets **Claude** use the **Calendar app of your Synology NAS** — or any other CalDAV server: list calendars, read the
 events of a date range, create, change and delete appointments and todos, straight from a conversation. A Claude
-Desktop extension in a single `.mcpb` file: install, fill in four fields, done.
+Desktop extension in a single `.mcpb` file: install, fill in three fields (**NAS-Adresse**, **Benutzername**,
+**Passwort**), done — the other three have defaults.
 
 | Folder | Purpose | Language | Start | Build |
 |---|---|---|---|---|
@@ -61,7 +62,7 @@ manual `NODE_TLS_REJECT_UNAUTHORIZED` fiddling.
 | `create-event` | New event, optionally all-day or recurring |
 | `update-event` | Change an existing event |
 | `delete-event` | Remove an event |
-| `list-todos` | Todos, optionally filtered by status |
+| `list-todos` | Open todos by default; completed or all on request |
 | `create-todo` | New todo |
 | `update-todo` | Change a todo |
 | `complete-todo` | Mark a todo done |
