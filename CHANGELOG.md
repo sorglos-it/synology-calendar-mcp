@@ -2,6 +2,8 @@
 
 ## Unreleased – 2026-09-22
 
+- Author is now „Sorglos Thomas Weirich“. Claude Desktop derives the extension's identity from it:
+  uninstall the old extension once before installing this version, then enter the settings again.
 - Project layout follows the project standard: the extension lives in `apps/server/` (`index.js`, `package.json`,
   `manifest.json`, `assets/icon.png`, `VERSION`), caldav-mcp moved from `server/` to `apps/server/vendor/caldav-mcp/`.
 - Origin, licence and own changes of caldav-mcp are recorded in `THIRD-PARTY.md`, which also ships in the `.mcpb`.

@@ -28,6 +28,12 @@ with Claude Desktop, and all dependencies are inside the `.mcpb`.
 3. **Fill in the fields** (see [Configuration](#configuration)) and switch the extension on. Then ask Claude
    something like *"which calendars do I have?"*.
 
+## Update
+
+Install the new `.mcpb` the same way; it replaces the old one.
+**Once, for bundles built after 22 Sep 2026:** the author name changed, so Claude Desktop sees a new
+extension. Uninstall the old *Synology Calendar* extension first (*Settings → Extensions*), then install the new one and fill in the fields again.
+
 ## Configuration
 
 | Field | Meaning |
