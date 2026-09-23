@@ -87,6 +87,9 @@ def make_handler(log, nextcloud=False):
             elif c == "PUT":
                 if STATE.get("redirect_put"):
                     return self._send(302, b"", [("Location", f"http://127.0.0.1:{EVIL}/cal/x.ics")])
+                if STATE.get("json_put"):
+                    return self._send(200, b'{"success":false,"error":{"code":119}}',
+                                      [("Content-Type", "application/json")])
                 STORE[p] = self.body.decode()
                 return self._send(204)
             elif c == "PROPFIND" and p.endswith(".ics"):
@@ -94,6 +97,9 @@ def make_handler(log, nextcloud=False):
             elif c == "DELETE":
                 if STATE.get("html_delete"):  # DSM after the session ended
                     return self._send(200, b"<html>login</html>", [("Content-Type", "text/html")])
+                if STATE.get("json_delete"):  # DSM's own web API answers errors like this
+                    return self._send(200, b'{"success":false,"error":{"code":119}}',
+                                      [("Content-Type", "application/json")])
                 STORE.pop(p, None)
                 return self._send(204)
             else:
@@ -307,6 +313,21 @@ STATE["html_delete"] = True
 err, text = m.call("delete-event", uid="bleibt-1", calendarUrl=CAL)
 check("delete answered with a web page fails", err and "session" in text.lower(), text)
 check("... and the entry is still there", "/caldav.php/u/home/bleibt.ics" in STORE)
+STATE.clear()
+
+# --- and one answered the way DSM's own web API answers: HTTP 200, success:false
+KEEP = "/caldav.php/u/home/bleibt2.ics"
+STORE[KEEP] = event_ics("bleibt-2")
+STATE["json_delete"] = True
+err, text = m.call("delete-event", uid="bleibt-2", calendarUrl=CAL)
+check("delete answered with a status message fails", err and "session" in text.lower(), text)
+check("... and that entry is still there", KEEP in STORE)
+STATE.clear()
+
+STATE["json_put"] = True
+err, text = m.call("update-event", uid="bleibt-2", calendarUrl=CAL, summary="Neu")
+check("a write answered with a status message fails", err and "session" in text.lower(), text)
+check("... and the entry keeps its old text", "Neu" not in STORE[KEEP], STORE[KEEP])
 STATE.clear()
 
 # --- a repetition that cannot be written is refused before anything is sent

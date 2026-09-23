@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.11 – 2026-09-23
+
+- **Deleting and changing stay honest when the NAS answers with a status message.** Since 1.1.10 the login page
+  of an ended DSM session is recognised. DSM reports other errors as a short status message under HTTP 200 as
+  well, and that still passed for a confirmation: *"Event deleted"* appeared while the appointment stayed on the
+  NAS. A calendar server confirms a write with no content or with XML — anything else now counts as *not
+  written*.
+
 ## 1.1.10 – 2026-09-23
 
 - **Deleting says so only when the NAS did it.** A delete answered with the DSM login page (HTTP 200 after the

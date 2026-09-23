@@ -153,13 +153,25 @@ const ifMatch = (etag) => {
 	return value && !value.toUpperCase().startsWith("W/") ? value : "*";
 };
 
-/** A write is only done when the answer says so - not when it is a web page. */
+/**
+ * A write is only done when the answer says so. A CalDAV server confirms one
+ * with no body at all or with XML, so two other answers give it away - both
+ * of which DSM sends under HTTP 200, where they would pass for success:
+ * the login page once the session has ended, and its own web API's
+ * {"success":false} for everything else.
+ */
 function confirmWrite(response, href) {
 	const type = String(response?.headers?.["content-type"] ?? "").toLowerCase();
-	const body = typeof response?.data === "string" ? response.data.trimStart().slice(0, 9).toLowerCase() : "";
-	if (type.includes("html") || body.startsWith("<html") || body.startsWith("<!doctype")) {
-		throw new Error(`${href} was answered with a web page instead of a confirmation, so `
-			+ "nothing was written. The DSM session may have ended - open DSM once, then try again.");
+	const data = response?.data;
+	const body = typeof data === "string" ? data.trimStart().slice(0, 9).toLowerCase() : "";
+	const page = type.includes("html") || body.startsWith("<html") || body.startsWith("<!doctype");
+	// axios hands a JSON answer over already parsed, so an object is one too
+	const report = type.includes("json") || body.startsWith("{") || body.startsWith("[")
+		|| (data !== null && typeof data === "object");
+	if (page || report) {
+		throw new Error(`${href} was answered with ${page ? "a web page" : "a status message"} `
+			+ "instead of a confirmation, so nothing was written. The DSM session may have ended - "
+			+ "open DSM once, then try again.");
 	}
 	return response;
 }

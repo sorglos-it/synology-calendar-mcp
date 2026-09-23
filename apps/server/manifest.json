@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "synology-calendar",
   "display_name": "Synology Kalender",
-  "version": "1.1.10",
+  "version": "1.1.11",
   "description": "Termine und Aufgaben eines Synology-NAS über CalDAV lesen und schreiben.",
   "long_description": "Verbindet Claude mit der Kalender-App eines Synology-NAS (oder jedem anderen CalDAV-Server).\n\n**Funktionen**\n• Kalender auflisten, Termine im Zeitraum abfragen\n• Termine anlegen, ändern, löschen — inklusive ganztägig und Wiederholungsregeln\n• Aufgaben (VTODO) anlegen, ändern, abhaken, löschen\n\n**Datenschutz**\nDer Server läuft ausschließlich lokal auf diesem Rechner und spricht direkt mit dem NAS. Es werden keine Daten an Dritte gesendet. Das Passwort wird von Claude Desktop im Schlüsselspeicher des Betriebssystems abgelegt und ist nicht Teil dieses Pakets.\n\n**Voraussetzungen**\n• Erreichbares Synology-NAS mit aktivierter Kalender-App und CalDAV-Dienst\n• \"Zertifikat prüfen\" ist ab Werk eingeschaltet und schützt so das Passwort. Hat das NAS noch sein selbstsigniertes Zertifikat (Synology-Standard): im DSM ein gültiges einrichten (z. B. Let's Encrypt) oder die Option ausschalten – dann nur im eigenen Heimnetz nutzen\n\nBasiert auf caldav-mcp von Dominik Grusemann (MIT).",
   "author": {
