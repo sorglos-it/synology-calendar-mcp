@@ -163,6 +163,18 @@ tsCaldav.CalDAVClient.prototype.tryDiscoveryRoots = async function () {
 			validateStatus: () => true,
 		});
 		if (res.status < 400) return this.baseUrl;
+		if (res.status === 401 || res.status === 403) {
+			// What the NAS refuses is the login, not the address. Probing on
+			// would be seven more refused logins for one tool call, and DSM
+			// locks an account out after a handful of those.
+			throw new Error(
+				`the NAS did not accept the login (HTTP ${res.status}). Check the user name `
+					+ "and the password in the extension settings. Note that DSM refuses the "
+					+ "calendar to accounts with two-step verification, and that it blocks an "
+					+ "account for a while after several refused attempts (Control Panel > "
+					+ "Security > Account, and > Protection).",
+			);
+		}
 	}
 	return probeRoots.call(this);
 };

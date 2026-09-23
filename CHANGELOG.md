@@ -2,6 +2,14 @@
 
 ## 1.1.11 – 2026-09-23
 
+- **A refused login costs one attempt, not nine.** When the NAS answered *401*, the extension went on probing six
+  more addresses and then asked again — nine refused logins for one question about the calendar. DSM locks an
+  account out after a handful of those, so a single typo in the password could lock the account for everyone and
+  every app on that computer. The first refusal now ends the call and says what to look at: user name, password,
+  two-step verification, and DSM's own lock (Control Panel → Security → Account → Protection).
+
+## 1.1.11 – 2026-09-23
+
 - **Deleting and changing stay honest when the NAS answers with a status message.** Since 1.1.10 the login page
   of an ended DSM session is recognised. DSM reports other errors as a short status message under HTTP 200 as
   well, and that still passed for a confirmation: *"Event deleted"* appeared while the appointment stayed on the

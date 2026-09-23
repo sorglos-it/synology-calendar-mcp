@@ -30,7 +30,7 @@ class Log(list):
     pass
 
 
-def make_handler(log, nextcloud=False):
+def make_handler(log, nextcloud=False, refuses=False):
     """DSM-like by default: the DAV root /caldav/ answers OPTIONS. With
     nextcloud=True /caldav/ does not exist and only /.well-known/caldav leads
     to the endpoint."""
@@ -54,6 +54,10 @@ def make_handler(log, nextcloud=False):
             log.append((self.command, self.path, self.headers.get("Authorization"),
                         self.headers.get("If-Match")))
             p, c = self.path, self.command
+            if refuses:  # a NAS that refuses the login, like DSM with a wrong password
+                return self._send(401, b"Please log in for access to this system.",
+                                  [("WWW-Authenticate", 'Basic realm="Synology Calendar"'),
+                                   ("Content-Type", "text/plain")])
             if nextcloud and c == "GET" and p == "/.well-known/caldav":
                 return self._send(301, headers=[("Location", root)])
             if c == "OPTIONS" and p == root:
@@ -113,8 +117,8 @@ def make_handler(log, nextcloud=False):
     return H
 
 
-def serve(log, nextcloud=False):
-    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), make_handler(log, nextcloud))
+def serve(log, nextcloud=False, refuses=False):
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), make_handler(log, nextcloud, refuses))
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd.server_address[1]
 
@@ -410,6 +414,18 @@ for tool, args in (("list-events", {"calendarUrl": "/cal/", "start": "2026-09-01
                                     "end": "2026-09-30T00:00:00Z"}), ("list-calendars", {})):
     err, text = m.call(tool, **args)
     check(f"broken address: {tool} explains it", err and ("not valid" in text or "Invalid URL" in text), text)
+m.close()
+
+# --- a refused login costs exactly one refused login
+refused_log = Log()
+REFUSED = serve(refused_log, refuses=True)
+m = Mcp(f"127.0.0.1:{REFUSED}")
+err, text = m.call("list-calendars")
+check("a refused login is reported as such", err and "did not accept the login" in text, text)
+check(f"... after exactly one attempt ({len(refused_log)})", len(refused_log) == 1, refused_log)
+err, text = m.call("list-events", calendarUrl="/caldav.php/u/home/",
+                   start="2026-09-01T00:00:00Z", end="2026-10-01T00:00:00Z")
+check(f"... and one more per further call ({len(refused_log)})", len(refused_log) == 2, refused_log)
 m.close()
 
 # --- a NAS that never answers costs one timeout, not eight
