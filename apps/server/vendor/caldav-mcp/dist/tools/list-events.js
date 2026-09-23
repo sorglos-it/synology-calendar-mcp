@@ -36,13 +36,15 @@ export function registerListEvents(client, server) {
         const objects = await queryObjects(client, calendarUrl, "VEVENT", { start: from, end: to });
         const data = [];
         const unreadable = [];
+        const why = (error) => (error instanceof Error ? error.message : String(error));
         for (const object of objects) {
-            // one damaged object must not take the whole calendar with it
+            // one damaged appointment must not take the whole calendar with it
+            const skipped = (uid, error) => unreadable.push(`${object.href} (${uid}: ${why(error)})`);
             try {
-                data.push(...expandEvents(object.ics, from, to));
+                data.push(...expandEvents(object.ics, from, to, 500, skipped));
             }
             catch (error) {
-                unreadable.push(`${object.href} (${error instanceof Error ? error.message : error})`);
+                unreadable.push(`${object.href} (${why(error)})`);
             }
         }
         data.sort((a, b) => String(a.start).localeCompare(String(b.start)));

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.7 – 2026-09-23
+
+- **A moved date of a series is listed once**, even when the entry writes it in another time zone than the series
+  itself — it used to appear twice, once as planned and once as moved.
+- One damaged appointment inside an entry costs only itself; the others in the same entry are still listed.
+- A repetition with more dates than can be worked out (a rule every minute since 2020) says so instead of quietly
+  returning nothing, and dates that are over before the period begins are no longer worked out at all — that was
+  seconds per call on a long series.
+- Two appointments that share an identifier without belonging together are both listed again.
+
 ## 1.1.6 – 2026-09-23
 
 - **One damaged entry no longer takes the whole calendar with it.** An event without a start date or a truncated

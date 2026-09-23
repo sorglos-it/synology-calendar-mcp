@@ -282,7 +282,7 @@ function eventOut(item, startTime, endTime, recurrenceId) {
  * dates (EXDATE) drop out, a moved instance (RECURRENCE-ID) appears at its new
  * time, and the answer says which occurrence it is.
  */
-export function expandEvents(text_, from, to, limit = 500) {
+export function expandEvents(text_, from, to, limit = 500, onSkip = null) {
 	const cal = parseCalendar(text_);
 	useZones(cal);
 	// one object can hold several appointments that have nothing to do with
@@ -293,18 +293,25 @@ export function expandEvents(text_, from, to, limit = 500) {
 		groups.set(uid, [...(groups.get(uid) ?? []), comp]);
 	}
 	const out = [];
-	for (const comps of groups.values()) {
+	for (const [uid, comps] of groups) {
 		if (out.length >= limit) break;
-		out.push(...expandOne(comps, from, to, limit - out.length));
+		try {
+			out.push(...expandOne(comps, from, to, limit - out.length));
+		} catch (error) {
+			// one damaged appointment must not cost the others in this object
+			if (!onSkip) throw error;
+			onSkip(uid, error);
+		}
 	}
 	return out;
 }
 
 function expandOne(comps, from, to, limit) {
-	const master = comps.find((c) => !c.getFirstProperty("recurrence-id"));
-	const changed = comps.filter((c) => c !== master);
+	const masters = comps.filter((c) => !c.getFirstProperty("recurrence-id"));
+	const [master, ...alsoMasters] = masters;
+	const changed = comps.filter((c) => !masters.includes(c));
 	const single = (comp) => {
-		const ev = new ICAL.Event(comp);
+		const ev = new ICAL.Event(new ICAL.Component(comp.toJSON()));
 		return eventOut(ev, ev.startDate, ev.endDate, ev.recurrenceId);
 	};
 	if (!master) {
@@ -316,27 +323,40 @@ function expandOne(comps, from, to, limit) {
 	// one that carries a foreign uid - it must not take the place of a real
 	// date of this series.
 	const event = new ICAL.Event(new ICAL.Component(master.toJSON()), { strictExceptions: true });
+	const zone = event.startDate?.zone;
 	for (const comp of changed) {
 		try {
-			event.relateException(new ICAL.Component(comp.toJSON()));
+			event.relateException(sameZoneCopy(comp, zone));
 		} catch {
 			// belongs to another appointment; it is listed on its own below
 		}
 	}
+	const out = [];
+	// two appointments that share a uid without being a series: each on its own
+	for (const extra of alsoMasters) out.push(...expandOne([extra], from, to, limit - out.length));
 	if (!event.isRecurring()) {
 		const one = eventOut(event, event.startDate, event.endDate, null);
-		return overlaps(one, from, to) ? [one] : [];
+		if (overlaps(one, from, to)) out.push(one);
+		return out;
 	}
-	const out = [];
 	const known = new Set();
 	const iterator = event.iterator();
+	const span = (event.duration?.toSeconds() ?? 0) * 1000;
 	// A series can have started years ago and ical.js only walks it date by
 	// date, so the ceiling is a safety net against an endless rule, not a
 	// window: the break below ends the walk at the end of the period.
-	for (let next = iterator.next(), steps = 0; next && steps < 200000; next = iterator.next(), steps++) {
+	let steps = 0;
+	for (let next = iterator.next(); next; next = iterator.next()) {
 		if (next.toJSDate() >= to) break;
+		if (++steps > 200000) {
+			throw new Error("This appointment repeats more often than can be worked out "
+				+ "(200000 dates before the end of the period).");
+		}
+		// dates that are over before the period begins cost nothing here; one
+		// moved into the period is picked up below
+		if (next.toJSDate().getTime() + span <= from.getTime()) continue;
 		const details = event.getOccurrenceDetails(next);
-		known.add(details.recurrenceId.toString());
+		known.add(details.recurrenceId.toJSDate().getTime());
 		const one = eventOut(details.item, details.startDate, details.endDate, details.recurrenceId);
 		// a moved instance can have left the period its original date is in
 		if (overlaps(one, from, to)) out.push(one);
@@ -344,17 +364,34 @@ function expandOne(comps, from, to, limit) {
 	}
 	// ... and one moved into the period from outside it is not on the walk
 	for (const comp of changed) {
+		const at = comp.getFirstPropertyValue("recurrence-id");
+		if (at && known.has(at.toJSDate().getTime())) continue;
 		const one = single(comp);
-		if (one.recurrenceId && known.has(rawRecurrenceId(comp))) continue;
 		if (overlaps(one, from, to) && out.length < limit) out.push(one);
 	}
 	return out;
 }
 
-const rawRecurrenceId = (comp) => {
-	const value = comp.getFirstPropertyValue("recurrence-id");
-	return value ? value.toString() : "";
-};
+/**
+ * A copy of a changed instance whose RECURRENCE-ID is written in the zone the
+ * series uses. ical.js matches instances by how that value reads, so the same
+ * moment spelled as UTC beside a series in Europe/Berlin would go unnoticed -
+ * and the date would then be listed twice, once as planned and once as moved.
+ */
+function sameZoneCopy(comp, zone) {
+	const copy = new ICAL.Component(comp.toJSON());
+	const prop = copy.getFirstProperty("recurrence-id");
+	const value = prop?.getFirstValue();
+	if (!value || value.isDate || !zone || value.zone === zone) return copy;
+	const moved = value.convertToZone(zone);
+	prop.setValue(moved);
+	if (zone === ICAL.Timezone.utcTimezone || zone === ICAL.Timezone.localTimezone) {
+		prop.removeParameter("tzid");
+	} else {
+		prop.setParameter("tzid", zone.tzid);
+	}
+	return copy;
+}
 
 function overlaps(out, from, to) {
 	const start = new Date(out.wholeDay ? `${out.start}T00:00:00` : out.start);
