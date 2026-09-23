@@ -87,6 +87,9 @@ manual `NODE_TLS_REJECT_UNAUTHORIZED` fiddling.
   the NAS has, so attendees, alarms, time zones, the cancelled and moved dates of a series and a task's repetition
   rule survive a rename. Before that, every change rebuilt the object from a handful of fields and quietly lost the
   rest. Whole-day dates stay dates, which is why they no longer slide to the day before.
+- **A change counts as done only when the NAS confirms it.** A write is never repeated at an address the answer
+  points to, and an answer that is a web page — DSM after the session ended — is reported as such instead of passing
+  for success or for an empty calendar.
 - **Shared calendars can be read-only.** Synology hands out team calendars without write privileges in some
   configurations; writes then fail with HTTP 403.
 - **The connection is opened on first use, not at startup.** A wrong password or an unreachable NAS therefore surfaces

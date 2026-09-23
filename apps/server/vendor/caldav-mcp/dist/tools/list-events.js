@@ -49,6 +49,12 @@ export function registerListEvents(client, server) {
         }
         data.sort((a, b) => String(a.start).localeCompare(String(b.start)));
         const content = [{ type: "text", text: JSON.stringify(data) }];
+        if (data.length >= 500) {
+            content.push({
+                type: "text",
+                text: "Note: 500 appointments is the most this answers with; ask for a shorter period to see the rest.",
+            });
+        }
         if (unreadable.length > 0) {
             content.push({
                 type: "text",

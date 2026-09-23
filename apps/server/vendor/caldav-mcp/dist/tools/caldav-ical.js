@@ -108,6 +108,68 @@ function recurFromRule(rule, wholeDay) {
 	return ICAL.Recur.fromString(parts.join(";"));
 }
 
+const PRODID = "-//sorglos//synology-calendar//EN";
+
+function newCalendar(name) {
+	const cal = new ICAL.Component(["vcalendar", [], []]);
+	cal.addPropertyWithValue("version", "2.0");
+	cal.addPropertyWithValue("prodid", PRODID);
+	const comp = new ICAL.Component(name);
+	cal.addSubcomponent(comp);
+	comp.addPropertyWithValue("dtstamp", ICAL.Time.fromJSDate(new Date(), true));
+	return [cal, comp];
+}
+
+/**
+ * A new appointment as a whole object.
+ *
+ * Written here rather than by ts-caldav, which puts a repetition rule's end
+ * date into the object in the wrong notation ("2026-11-30T23:00:00Z" instead
+ * of "20261130T230000Z"). The server takes it, and from then on nothing can
+ * read the appointment any more - not this extension and not the calendar app.
+ */
+export function buildEvent(fields) {
+	const [cal, vevent] = newCalendar("vevent");
+	vevent.addPropertyWithValue("uid", fields.uid);
+	const whole = !!fields.wholeDay;
+	const start = whole ? asDate(fields.start) : asUtc(fields.start);
+	const end = whole ? asDate(fields.end) : asUtc(fields.end);
+	if (whole) end.adjust(1, 0, 0, 0); // DTEND is the day after the last one
+	if (end.compare(start) <= 0) {
+		// an end before the start is no appointment; a day, or an hour
+		const fixed = start.clone();
+		fixed.adjust(whole ? 1 : 0, whole ? 0 : 1, 0, 0);
+		putTime(vevent, "dtend", fixed);
+	} else {
+		putTime(vevent, "dtend", end);
+	}
+	putTime(vevent, "dtstart", start);
+	text(vevent, "summary", fields.summary);
+	text(vevent, "description", fields.description);
+	text(vevent, "location", fields.location);
+	if (fields.recurrenceRule) {
+		vevent.addPropertyWithValue("rrule", recurFromRule(fields.recurrenceRule, whole));
+	}
+	return cal.toString();
+}
+
+/** A new task as a whole object. */
+export function buildTodo(fields) {
+	const [cal, vtodo] = newCalendar("vtodo");
+	vtodo.addPropertyWithValue("uid", fields.uid);
+	if (fields.due !== undefined) putTime(vtodo, "due", asUtc(fields.due));
+	if (fields.start !== undefined) putTime(vtodo, "dtstart", asUtc(fields.start));
+	text(vtodo, "summary", fields.summary);
+	text(vtodo, "description", fields.description);
+	text(vtodo, "location", fields.location);
+	vtodo.addPropertyWithValue("status", fields.status || "NEEDS-ACTION");
+	if (fields.status === "COMPLETED") {
+		vtodo.addPropertyWithValue("completed", ICAL.Time.fromJSDate(new Date(), true));
+		vtodo.addPropertyWithValue("percent-complete", 100);
+	}
+	return cal.toString();
+}
+
 /**
  * Changes only the given fields of an event and returns the whole object again.
  *
@@ -411,14 +473,19 @@ export function todosOf(text_) {
 		const time = (name) => {
 			const t = timeOf(vtodo, name);
 			if (!t) return {};
-			return { text: t.isDate ? dateString(t) : utcString(t), at: t.toJSDate() };
+			// a date counts as that date, not as midnight local time - which
+			// is the day before, seen from UTC, and would filter wrongly
+			return t.isDate
+				? { text: dateString(t), at: new Date(`${dateString(t)}T00:00:00Z`) }
+				: { text: utcString(t), at: t.toJSDate() };
 		};
 		const due = time("due");
 		const sortOrder = Number(value("x-apple-sort-order"));
 		return {
 			uid: String(value("uid") ?? ""),
 			summary: String(value("summary") ?? "Untitled Task"),
-			status: String(value("status") ?? "NEEDS-ACTION"),
+			// a status is a keyword, whatever case the writing app used
+			status: String(value("status") ?? "NEEDS-ACTION").toUpperCase(),
 			due: due.text,
 			dueAt: due.at ?? null,
 			start: time("dtstart").text,

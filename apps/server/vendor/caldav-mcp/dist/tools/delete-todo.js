@@ -1,6 +1,5 @@
-import { CalDAVError } from "ts-caldav";
 import { z } from "zod";
-import { hrefFor } from "./caldav-href.js";
+import { deleteObject, findObject } from "./caldav-objects.js";
 export const deleteTodoDefinition = {
     name: "delete-todo",
     description: "Deletes a task (VTODO) in the calendar specified by its URL",
@@ -18,21 +17,13 @@ export function registerDeleteTodo(client, server) {
         inputSchema: deleteTodoDefinition.inputSchema,
     }, async (args) => {
         const { uid, calendarUrl } = args;
-        // Map a missing object onto the same friendly message complete-todo and
-        // update-todo raise, so all three todo tools report a missing task the
-        // same way. (delete-event still surfaces the raw transport error; the
-        // event family is left as-is.) Non-404 failures propagate untouched.
-        let etag;
-        try {
-            etag = await client.getETag(hrefFor(calendarUrl, uid));
+        // deleted at its own address, and a missing task reads the same way
+        // here as in complete-todo and update-todo
+        const object = await findObject(client, calendarUrl, "VTODO", uid);
+        if (!object) {
+            throw new Error(`Todo not found: ${uid}`);
         }
-        catch (error) {
-            if (error instanceof CalDAVError && error.status === 404) {
-                throw new Error(`Todo not found: ${uid}`);
-            }
-            throw error;
-        }
-        await client.deleteTodo(calendarUrl, uid, etag);
+        await deleteObject(client, object);
         return {
             content: [{ type: "text", text: "Todo deleted" }],
         };

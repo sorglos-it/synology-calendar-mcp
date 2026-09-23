@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { hrefFor } from "./caldav-href.js";
+import { deleteObject, findObject } from "./caldav-objects.js";
 export const deleteEventDefinition = {
     name: "delete-event",
     description: "Deletes an event in the calendar specified by its URL",
@@ -17,8 +17,13 @@ export function registerDeleteEvent(client, server) {
         inputSchema: deleteEventDefinition.inputSchema,
     }, async (args) => {
         const { uid, calendarUrl } = args;
-        const etag = await client.getETag(hrefFor(calendarUrl, uid));
-        await client.deleteEvent(calendarUrl, uid, etag);
+        // deleted at its own address: an event the calendar app stored under
+        // another file name than <uid>.ics was "not found" before
+        const object = await findObject(client, calendarUrl, "VEVENT", uid);
+        if (!object) {
+            throw new Error(`Event not found: ${uid}`);
+        }
+        await deleteObject(client, object);
         return {
             content: [{ type: "text", text: "Event deleted" }],
         };

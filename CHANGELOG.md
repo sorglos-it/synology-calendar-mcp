@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.1.8 – 2026-09-23
+
+- **Creating a repeating appointment no longer breaks it.** The end date of the repetition was written in a notation
+  no calendar can read, and the appointment then disappeared from every list — from this extension and from the
+  Synology app. Appointments and tasks are now written by this extension itself instead of by the library.
+- **A change only counts as done when the NAS confirms it.** A write answered with a redirect was repeated at the
+  address it pointed to — carrying the whole appointment — and its answer passed for success while the NAS never saw
+  it. An ended DSM session (its login page with HTTP 200) read as *"the calendar is empty"*; now it says what
+  happened.
+- **Deleting finds the entry by its identifier**, also when the calendar app stored it under a file name of its own.
+  Before, `delete-todo` said "not found" for a task the list had just shown.
+- A deadline without a time is filtered as that date — in Central European Time it counted as the day before — and a
+  status written in lower case counts. Blocks the server marked *not found* are no longer read as data.
+- Without a usable ETag a change says "the entry has to still exist" instead of overwriting blindly.
+- The extension no longer picks up a `CALDAV_BASE_URL` that happens to be set on the computer, a `#` in the NAS
+  address no longer swallows the port, the request timeout stays inside the 5 to 600 seconds the dialog offers, and
+  the list of appointments says so when it was cut off at 500.
+
 ## 1.1.7 – 2026-09-23
 
 - **A moved date of a series is listed once**, even when the entry writes it in another time zone than the series

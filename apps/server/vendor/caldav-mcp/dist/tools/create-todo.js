@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { buildTodo } from "./caldav-ical.js";
+import { createObject } from "./caldav-objects.js";
 import { todoStatusSchema } from "./todo-status.js";
 export const createTodoDefinition = {
     name: "create-todo",
@@ -30,16 +33,18 @@ export function registerCreateTodo(client, server) {
         inputSchema: createTodoDefinition.inputSchema,
     }, async (args) => {
         const { calendarUrl, summary, due, start, description, location, status, } = args;
-        const todo = await client.createTodo(calendarUrl, {
-            summary,
-            ...(due !== undefined && { due: new Date(due) }),
-            ...(start !== undefined && { start: new Date(start) }),
+        // written here, like the events: see create-event.js
+        const uid = randomUUID();
+        await createObject(client, calendarUrl, uid, buildTodo({
+            uid, summary,
+            ...(due !== undefined && { due }),
+            ...(start !== undefined && { start }),
             ...(description !== undefined && { description }),
             ...(location !== undefined && { location }),
             ...(status !== undefined && { status }),
-        });
+        }));
         return {
-            content: [{ type: "text", text: todo.uid }],
+            content: [{ type: "text", text: uid }],
         };
     });
 }

@@ -21,13 +21,23 @@ export const stampOf = (date) => date.toISOString().replace(/[-:]/g, "").replace
 /** The objects of one calendar, as {href, etag, ics}. */
 export function parseMultistatus(xml) {
 	const data = typeof xml === "string" ? parser.parse(xml) : xml;
-	let responses = data?.multistatus?.response ?? [];
+	if (!data || typeof data !== "object" || !data.multistatus) {
+		// DSM answers an ended session with its login page and HTTP 200;
+		// read as "the calendar is empty", that would be a lie
+		throw new Error("The NAS did not answer with a calendar listing. The DSM session may "
+			+ "have ended - open DSM once, then try again.");
+	}
+	let responses = data.multistatus.response ?? [];
 	if (!Array.isArray(responses)) responses = [responses];
 	const out = [];
 	for (const response of responses) {
 		let propstats = response?.propstat ?? [];
 		if (!Array.isArray(propstats)) propstats = [propstats];
 		for (const propstat of propstats) {
+			// only what the server marked as found: a 404 or 403 block carries
+			// empty properties, not an object
+			const status = String(propstat?.status ?? "HTTP/1.1 200 OK");
+			if (!/\s2\d\d\b/.test(status)) continue;
 			const ics = propstat?.prop?.["calendar-data"];
 			if (ics === undefined || ics === null || ics === "") continue;
 			out.push({
@@ -99,9 +109,40 @@ export function damaged(uid, change) {
 	}
 }
 
+/**
+ * What may go into If-Match: a weak validator is not allowed there, and
+ * without one at all the most that can be said is that the object has to
+ * still exist - better than overwriting whatever is there now.
+ */
+const ifMatch = (etag) => {
+	const value = String(etag || "").trim();
+	return value && !value.toUpperCase().startsWith("W/") ? value : "*";
+};
+
+/** A write is only done when the answer says so - not when it is a web page. */
+function confirmWrite(response, href) {
+	const type = String(response?.headers?.["content-type"] ?? "");
+	if (type.toLowerCase().includes("html")) {
+		throw new Error(`${href} was answered with a web page instead of a confirmation, so `
+			+ "nothing was written. The DSM session may have ended - open DSM once, then try again.");
+	}
+	return response;
+}
+
 /** Writes an object back, refusing if it changed on the server meanwhile. */
 export async function writeObject(client, object, ics) {
-	const etag = String(object.etag || "");
-	const headers = etag && !etag.startsWith("W/") ? { "If-Match": etag } : {};
-	await client.mkIcsPut(object.href, ics, headers);
+	confirmWrite(await client.mkIcsPut(object.href, ics, { "If-Match": ifMatch(object.etag) }),
+		object.href);
+}
+
+/** Creates a new object; the server refuses if that address is taken. */
+export async function createObject(client, calendarUrl, uid, ics) {
+	const href = hrefFor(calendarUrl, uid);
+	confirmWrite(await client.mkIcsPut(href, ics, { "If-None-Match": "*" }), href);
+	return href;
+}
+
+/** Deletes the object at its own address, whatever it is called. */
+export async function deleteObject(client, object) {
+	await client.deleteHref(object.href, ifMatch(object.etag));
 }

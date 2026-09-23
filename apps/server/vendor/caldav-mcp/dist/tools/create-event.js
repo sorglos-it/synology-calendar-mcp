@@ -1,22 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
-function toRecurrenceRule(r) {
-    const out = {};
-    if (r.freq !== undefined)
-        out.freq = r.freq;
-    if (r.interval !== undefined)
-        out.interval = r.interval;
-    if (r.count !== undefined)
-        out.count = r.count;
-    if (r.until !== undefined)
-        out.until = new Date(r.until);
-    if (r.byday !== undefined)
-        out.byday = r.byday;
-    if (r.bymonthday !== undefined)
-        out.bymonthday = r.bymonthday;
-    if (r.bymonth !== undefined)
-        out.bymonth = r.bymonth;
-    return out;
-}
+import { buildEvent } from "./caldav-ical.js";
+import { createObject } from "./caldav-objects.js";
 const recurrenceRuleSchema = z.object({
     freq: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]).optional(),
     interval: z.number().optional(),
@@ -53,23 +38,19 @@ export function registerCreateEvent(client, server) {
         inputSchema: createEventDefinition.inputSchema,
     }, async (args) => {
         const { calendarUrl, summary, start, end, wholeDay, description, location, recurrenceRule, } = args;
-        // A whole-day event is written from the calendar date the caller named.
-        // Through a Date it would be the UTC date of that moment instead, and
-        // "2026-10-03T00:00:00+02:00" would land on 2 October.
-        const day = (iso) => new Date(`${String(iso).slice(0, 10)}T00:00:00Z`);
-        const event = await client.createEvent(calendarUrl, {
-            summary: summary,
-            start: wholeDay ? day(start) : new Date(start),
-            end: wholeDay ? day(end) : new Date(end),
-            ...(wholeDay !== undefined && { wholeDay }),
+        // The object is written here rather than by ts-caldav: it reads a
+        // whole-day date in UTC (an appointment on 3 October lands on the 2nd
+        // east of Greenwich) and writes a repetition rule's end date in a
+        // notation no calendar can read afterwards.
+        const uid = randomUUID();
+        await createObject(client, calendarUrl, uid, buildEvent({
+            uid, summary, start, end, wholeDay,
             ...(description !== undefined && { description }),
             ...(location !== undefined && { location }),
-            ...(recurrenceRule !== undefined && {
-                recurrenceRule: toRecurrenceRule(recurrenceRule),
-            }),
-        });
+            ...(recurrenceRule !== undefined && { recurrenceRule }),
+        }));
         return {
-            content: [{ type: "text", text: event.uid }],
+            content: [{ type: "text", text: uid }],
         };
     });
 }

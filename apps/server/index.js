@@ -44,7 +44,9 @@ const DEFAULT_PORT = { true: 5001, false: 5000 }; // DSM https / http
  */
 const seconds = (name, fallback) => {
 	const secs = Number(String(process.env[name] ?? "").trim());
-	return Number.isFinite(secs) && secs > 0 ? secs : fallback;
+	// kept inside the range the settings dialog offers: a thousandth of a
+	// second would make every request fail before it started
+	return Number.isFinite(secs) && secs >= 5 ? Math.min(secs, 600) : fallback;
 };
 
 /**
@@ -56,7 +58,7 @@ const seconds = (name, fallback) => {
  */
 const composeBaseUrl = (host, https) => {
 	let h = String(host).trim().replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, "");
-	h = h.split("/")[0].split("?")[0].trim().replace(/^\.+|\.+$/g, "");
+	h = h.split("/")[0].split("?")[0].split("#")[0].trim().replace(/^\.+|\.+$/g, "");
 	if (h.includes("@")) h = h.slice(h.lastIndexOf("@") + 1);
 	if (!h) return "";
 	// after the last "]" so an IPv6 literal like [::1] is not read as host:port
@@ -127,6 +129,29 @@ const tsCaldav = await import("./vendor/caldav-mcp/node_modules/ts-caldav/dist/i
  * all, the probes would only repeat that. Only a base URL that answers with an
  * error - another server behind a /.well-known redirect - still gets them.
  */
+/*
+ * Writes must not be repeated somewhere else. axios follows up to 21
+ * redirects, so a PUT answered with "302 to another server" sent the whole
+ * appointment there and reported its 201 as success, while the NAS never saw
+ * it. Deleting gets its own method here as well: it addresses the object by
+ * the address the server gave it, instead of guessing <uid>.ics.
+ */
+const ICS = "text/calendar; charset=utf-8";
+tsCaldav.CalDAVClient.prototype.mkIcsPut = function (href, ics, headers, validate) {
+	return this.httpClient.put(href, ics, {
+		headers: { "Content-Type": ICS, ...(headers || {}) },
+		validateStatus: validate ?? ((s) => s >= 200 && s < 300),
+		maxRedirects: 0,
+	});
+};
+tsCaldav.CalDAVClient.prototype.deleteHref = function (href, ifMatch) {
+	return this.httpClient.delete(href, {
+		headers: { "If-Match": ifMatch || "*" },
+		validateStatus: (s) => s === 200 || s === 202 || s === 204,
+		maxRedirects: 0,
+	});
+};
+
 const probeRoots = tsCaldav.CalDAVClient.prototype.tryDiscoveryRoots;
 tsCaldav.CalDAVClient.prototype.tryDiscoveryRoots = async function () {
 	if (new URL(this.baseUrl).pathname !== "/") {
