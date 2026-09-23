@@ -120,8 +120,20 @@ apps/server/package.json        marks index.js as an ES module
 apps/server/assets/icon.png     icon shown in Claude Desktop
 apps/server/VERSION             version, the same as in manifest.json and package.json
 apps/server/vendor/caldav-mcp/  caldav-mcp 0.10.0 with our changes — origin and changes in THIRD-PARTY.md
+apps/server/tests/              checks against fake servers; never contact a real NAS and never ship in the bundle
 tools/build.py                  packs apps/server, README.md, LICENSE and THIRD-PARTY.md into dist/synology-calendar-<version>.mcpb
 ```
+
+```bash
+cd apps/server/tests
+node test_ical.mjs           # reading and writing iCalendar objects
+python test_mcp.py           # the tools over real MCP against a fake NAS: where requests go
+python test_written_ics.py   # the same, looking at what is written into them
+uv run --with "mcp>=2.0,<3" --with httpx --with cryptography python test_tls.py   # certificate checking
+```
+
+Every check prints one line and the run ends with `all passed`. Pass an unpacked `.mcpb` folder as the first
+argument to run the two Python suites against a built bundle instead of the sources.
 
 ```bash
 npm install --prefix apps/server/vendor/caldav-mcp --omit=dev --ignore-scripts

@@ -37,26 +37,40 @@ export function parseMultistatus(xml) {
 		if (!Array.isArray(propstats)) propstats = [propstats];
 		for (const propstat of propstats) {
 			// only what the server marked as found: a 404 or 403 block carries
-			// empty properties, not an object
+			// empty properties, not an object. The code is the field after the
+			// protocol - a reason phrase reading "500 Error at line 204" must
+			// not pass for one.
 			const status = String(propstat?.status ?? "HTTP/1.1 200 OK");
-			if (!/\s2\d\d\b/.test(status)) continue;
+			if (!/^\s*HTTP\/\d(?:\.\d)?\s+2\d\d\b/.test(status)) continue;
 			const ics = propstat?.prop?.["calendar-data"];
 			if (ics === undefined || ics === null || ics === "") continue;
+			const etag = propstat.prop.getetag;
 			out.push({
 				href: String(response.href ?? ""),
 				// &#13; survives some servers' escaping and would break parsing
 				ics: String(ics).replace(/&#13;/g, "\r"),
-				etag: propstat.prop.getetag ? String(propstat.prop.getetag) : "",
+				// an ETag of "0" is a version mark like any other; only a
+				// missing one is none
+				etag: etag === undefined || etag === null ? "" : String(etag),
 			});
 		}
 	}
 	return out;
 }
 
-/** Every VEVENT/VTODO object of a calendar, optionally limited to a period. */
-export async function queryObjects(client, calendarUrl, component, range) {
-	const filter = range
-		? `<c:comp-filter name="${component}"><c:time-range start="${stampOf(range.start)}" end="${stampOf(range.end)}"/></c:comp-filter>`
+/**
+ * Every VEVENT/VTODO object of a calendar, optionally limited to a period or
+ * to one uid. Filtering by uid keeps a single lookup from pulling the whole
+ * calendar; a server that ignores the filter simply answers with more.
+ */
+export async function queryObjects(client, calendarUrl, component, range, uid = null) {
+	const inner = uid
+		? `<c:prop-filter name="UID"><c:text-match collation="i;octet">${xml(uid)}</c:text-match></c:prop-filter>`
+		: range
+			? `<c:time-range start="${stampOf(range.start)}" end="${stampOf(range.end)}"/>`
+			: "";
+	const filter = inner
+		? `<c:comp-filter name="${component}">${inner}</c:comp-filter>`
 		: `<c:comp-filter name="${component}"/>`;
 	const body = `<?xml version="1.0" encoding="utf-8"?><c:calendar-query ${NS}>${PROPS}`
 		+ `<c:filter><c:comp-filter name="VCALENDAR">${filter}</c:comp-filter></c:filter></c:calendar-query>`;
@@ -82,12 +96,30 @@ export async function readObject(client, calendarUrl, href) {
  * rather than reported as missing.
  */
 export async function findObject(client, calendarUrl, component, uid) {
-	const direct = await readObject(client, calendarUrl, hrefFor(calendarUrl, uid));
-	if (direct && idOf(direct) === uid) return direct;
-	for (const object of await queryObjects(client, calendarUrl, component, null)) {
-		if (idOf(object) === uid) return object;
+	let href = null;
+	try {
+		href = hrefFor(calendarUrl, uid);
+	} catch {
+		// A uid that cannot be part of an address is still a uid an object may
+		// carry - the calendar app names its files as it likes. It is looked
+		// up below instead of being refused; nothing is built from it.
+		href = null;
 	}
-	return null;
+	if (href) {
+		const direct = await readObject(client, calendarUrl, href);
+		if (direct && idOf(direct) === uid) return direct;
+	}
+	// ask for this one uid rather than pulling the whole calendar
+	let found = null;
+	try {
+		found = (await queryObjects(client, calendarUrl, component, null, uid))
+			.find((object) => idOf(object) === uid);
+	} catch {
+		found = null; // a server that does not understand the filter
+	}
+	if (found) return found;
+	const all = await queryObjects(client, calendarUrl, component, null);
+	return all.find((object) => idOf(object) === uid) ?? null;
 }
 
 /** The uid of an object, or nothing at all if it cannot be read. */
@@ -123,8 +155,9 @@ const ifMatch = (etag) => {
 
 /** A write is only done when the answer says so - not when it is a web page. */
 function confirmWrite(response, href) {
-	const type = String(response?.headers?.["content-type"] ?? "");
-	if (type.toLowerCase().includes("html")) {
+	const type = String(response?.headers?.["content-type"] ?? "").toLowerCase();
+	const body = typeof response?.data === "string" ? response.data.trimStart().slice(0, 9).toLowerCase() : "";
+	if (type.includes("html") || body.startsWith("<html") || body.startsWith("<!doctype")) {
 		throw new Error(`${href} was answered with a web page instead of a confirmation, so `
 			+ "nothing was written. The DSM session may have ended - open DSM once, then try again.");
 	}
@@ -146,5 +179,7 @@ export async function createObject(client, calendarUrl, uid, ics) {
 
 /** Deletes the object at its own address, whatever it is called. */
 export async function deleteObject(client, object) {
-	await client.deleteHref(object.href, ifMatch(object.etag));
+	// checked like a write: an ended DSM session answers the DELETE with its
+	// login page and HTTP 200, and that must not read as "deleted"
+	confirmWrite(await client.deleteHref(object.href, ifMatch(object.etag)), object.href);
 }

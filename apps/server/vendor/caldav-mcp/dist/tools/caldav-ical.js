@@ -62,8 +62,13 @@ const asUtc = (iso) => ICAL.Time.fromJSDate(iso instanceof Date ? iso : new Date
 
 function text(comp, name, value) {
 	if (value === undefined) return;
-	if (value === "" || value === null) comp.removeAllProperties(name);
-	else comp.updatePropertyWithValue(name, value);
+	if (value === "" || value === null) {
+		comp.removeAllProperties(name);
+		return;
+	}
+	// ical.js escapes comma, semicolon, backslash and LF, but leaves a lone CR
+	// standing - in the file that is a line break in the middle of a value
+	comp.updatePropertyWithValue(name, String(value).replace(/\r\n?/g, "\n"));
 }
 
 /**
@@ -95,6 +100,12 @@ function stamp(comp) {
 }
 
 function recurFromRule(rule, wholeDay) {
+	if (rule.count !== undefined && rule.until !== undefined) {
+		// RFC 5545 3.3.10 allows one or the other, and readers disagree about
+		// a rule that has both - one stops after the count, the next at the date
+		throw new Error("A repetition ends either after a number of dates (count) or on a "
+			+ "date (until), not both.");
+	}
 	const parts = [`FREQ=${rule.freq ?? "DAILY"}`];
 	if (rule.interval !== undefined) parts.push(`INTERVAL=${rule.interval}`);
 	if (rule.count !== undefined) parts.push(`COUNT=${rule.count}`);
@@ -194,6 +205,10 @@ export function patchEvent(text_, changes) {
 
 	if (start !== undefined || end !== undefined || wholeDay !== undefined) {
 		if (!oldStart) throw new Error("The event has no start date.");
+		if (wasDate && !toDate && start === undefined) {
+			throw new Error("Turning a whole-day appointment into one with times needs a "
+				+ "start (and an end).");
+		}
 		const kindKept = toDate === wasDate;
 		// A new time is written in the zone the event already used, so that a
 		// weekly series keeps its local hour instead of drifting at the change
@@ -222,6 +237,11 @@ export function patchEvent(text_, changes) {
 		const moved = newStart.subtractDate(oldStart);
 		if (moved.toSeconds() !== 0 && vevent.getFirstProperty("rrule")) {
 			shiftSeries(cal, vevent, moved);
+		}
+		// both ends in the same kind and the same zone: a start in UTC beside
+		// an end without one is read differently by every calendar
+		if (newEnd && !newEnd.isDate && !newStart.isDate && newEnd.zone !== newStart.zone) {
+			newEnd = newEnd.convertToZone(newStart.zone);
 		}
 		putTime(vevent, "dtstart", newStart);
 		if (newEnd) {
@@ -456,8 +476,11 @@ function sameZoneCopy(comp, zone) {
 }
 
 function overlaps(out, from, to) {
-	const start = new Date(out.wholeDay ? `${out.start}T00:00:00` : out.start);
-	const end = new Date(out.wholeDay ? `${out.end}T23:59:59` : out.end);
+	// a date counts as that whole day in UTC; read as local time, a whole-day
+	// appointment would fall in or out of the period by a day east or west of
+	// Greenwich
+	const start = new Date(out.wholeDay ? `${out.start}T00:00:00Z` : out.start);
+	const end = new Date(out.wholeDay ? `${out.end}T23:59:59.999Z` : out.end);
 	return start < to && end > from;
 }
 

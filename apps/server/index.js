@@ -58,7 +58,9 @@ const seconds = (name, fallback) => {
  */
 const composeBaseUrl = (host, https) => {
 	let h = String(host).trim().replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, "");
-	h = h.split("/")[0].split("?")[0].split("#")[0].trim().replace(/^\.+|\.+$/g, "");
+	// a backslash counts as a separator too: "\\nas\home" is a Windows path,
+	// and its rest must not end up in the address
+	h = h.split(/[/\\?#]/)[0].trim().replace(/^\.+|\.+$/g, "");
 	if (h.includes("@")) h = h.slice(h.lastIndexOf("@") + 1);
 	if (!h) return "";
 	// after the last "]" so an IPv6 literal like [::1] is not read as host:port

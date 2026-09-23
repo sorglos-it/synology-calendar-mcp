@@ -38,10 +38,11 @@ export function registerListEvents(client, server) {
         const unreadable = [];
         const why = (error) => (error instanceof Error ? error.message : String(error));
         for (const object of objects) {
+            if (data.length >= 500) break; // the cap is for the answer, not per entry
             // one damaged appointment must not take the whole calendar with it
             const skipped = (uid, error) => unreadable.push(`${object.href} (${uid}: ${why(error)})`);
             try {
-                data.push(...expandEvents(object.ics, from, to, 500, skipped));
+                data.push(...expandEvents(object.ics, from, to, 500 - data.length, skipped));
             }
             catch (error) {
                 unreadable.push(`${object.href} (${why(error)})`);

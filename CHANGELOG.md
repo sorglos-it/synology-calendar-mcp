@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.1.10 – 2026-09-23
+
+- **Deleting says so only when the NAS did it.** A delete answered with the DSM login page (HTTP 200 after the
+  session ended) reported *"Event deleted"* while the appointment stayed where it was.
+- **Whole-day appointments fall in the same period everywhere.** Their dates were compared in the computer's own
+  time zone against a period in world time, so east of Greenwich one could show up a day early and west of it a day
+  late.
+- **A repetition that ends both after a number of dates and on a date is refused.** Written into one rule, the two
+  contradict each other and every calendar reads the result differently. A repetition every 0 days, a negative
+  number of dates and a weekday carrying its own rule parts are refused as well.
+- **At most 500 appointments per answer, counted over the whole calendar** — it used to be 500 per entry, so twenty
+  repeating appointments could answer with ten thousand.
+- **An entry the Synology app stored under its own file name can be deleted and changed by its identifier**, and
+  looking one up asks the NAS for that identifier instead of downloading the whole calendar.
+- A lone carriage return in a text no longer lands in the file as a line break; both ends of an appointment keep the
+  same kind and time zone; turning a whole-day appointment into one with times asks for those times.
+- A version mark of `0` counts as one, and a failed block whose text happens to contain *200* is no longer read as
+  data.
+- The checks that prove all of this live in `apps/server/tests/` now and run against fake servers.
+
 ## 1.1.9 – 2026-09-23
 
 - **A period without appointments is empty again, not an error.** 1.1.8 read the server's "nothing here" answer as a
