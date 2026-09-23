@@ -21,13 +21,15 @@ export const stampOf = (date) => date.toISOString().replace(/[-:]/g, "").replace
 /** The objects of one calendar, as {href, etag, ics}. */
 export function parseMultistatus(xml) {
 	const data = typeof xml === "string" ? parser.parse(xml) : xml;
-	if (!data || typeof data !== "object" || !data.multistatus) {
+	// the key has to be there; its value is empty for a calendar with nothing
+	// in the period, and that is an empty list, not a broken answer
+	if (!data || typeof data !== "object" || !("multistatus" in data)) {
 		// DSM answers an ended session with its login page and HTTP 200;
 		// read as "the calendar is empty", that would be a lie
 		throw new Error("The NAS did not answer with a calendar listing. The DSM session may "
 			+ "have ended - open DSM once, then try again.");
 	}
-	let responses = data.multistatus.response ?? [];
+	let responses = data.multistatus?.response ?? [];
 	if (!Array.isArray(responses)) responses = [responses];
 	const out = [];
 	for (const response of responses) {

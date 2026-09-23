@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.9 – 2026-09-23
+
+- **A period without appointments is empty again, not an error.** 1.1.8 read the server's "nothing here" answer as a
+  broken one and claimed the DSM session had ended. A calendar with nothing in the period, and a calendar without
+  tasks, answer with an empty list again.
+
 ## 1.1.8 – 2026-09-23
 
 - **Creating a repeating appointment no longer breaks it.** The end date of the repetition was written in a notation
