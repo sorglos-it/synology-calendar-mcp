@@ -104,6 +104,8 @@ def make_handler(log, nextcloud=False, refuses=False):
                 if STATE.get("json_delete"):  # DSM's own web API answers errors like this
                     return self._send(200, b'{"success":false,"error":{"code":119}}',
                                       [("Content-Type", "application/json")])
+                if STATE.get("bare_delete"):  # 200 and nothing else - DSM confirms with 204
+                    return self._send(200)
                 STORE.pop(p, None)
                 return self._send(204)
             else:
@@ -332,6 +334,13 @@ STATE["json_put"] = True
 err, text = m.call("update-event", uid="bleibt-2", calendarUrl=CAL, summary="Neu")
 check("a write answered with a status message fails", err and "session" in text.lower(), text)
 check("... and the entry keeps its old text", "Neu" not in STORE[KEEP], STORE[KEEP])
+STATE.clear()
+
+# --- the NAS confirms a delete with 204; a bare 200 is not a confirmation
+STATE["bare_delete"] = True
+err, text = m.call("delete-event", uid="bleibt-2", calendarUrl=CAL)
+check("delete answered with a bare 200 fails", err and "session" in text.lower(), text)
+check("... and that entry is still there too", KEEP in STORE)
 STATE.clear()
 
 # --- a repetition that cannot be written is refused before anything is sent

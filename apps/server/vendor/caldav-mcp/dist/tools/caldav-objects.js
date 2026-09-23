@@ -189,9 +189,21 @@ export async function createObject(client, calendarUrl, uid, ics) {
 	return href;
 }
 
-/** Deletes the object at its own address, whatever it is called. */
+/**
+ * Deletes the object at its own address, whatever it is called.
+ *
+ * A server that carried the delete out answers 204, or 202 when it will do it
+ * in a moment - DSM, measured against its own calendar, answers 204. It uses
+ * 200 for the answers that are not a confirmation at all: the login page once
+ * the session has ended, and its own web API's status messages. Their body
+ * gives them away, and the status code is looked at on top of that, so an
+ * empty 200 from something sitting in between does not read as "deleted"
+ * either.
+ */
 export async function deleteObject(client, object) {
-	// checked like a write: an ended DSM session answers the DELETE with its
-	// login page and HTTP 200, and that must not read as "deleted"
-	confirmWrite(await client.deleteHref(object.href, ifMatch(object.etag)), object.href);
+	const answer = confirmWrite(await client.deleteHref(object.href, ifMatch(object.etag)), object.href);
+	if (answer?.status !== 202 && answer?.status !== 204) {
+		throw new Error(`${object.href} was answered with ${answer?.status} instead of a confirmation, `
+			+ "so nothing was deleted. The DSM session may have ended - open DSM once, then try again.");
+	}
 }

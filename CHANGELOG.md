@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.12 – 2026-09-23
+
+- **A delete counts as done only when the NAS says it is done.** Measured against a Synology NAS, its calendar
+  confirms a delete with *204* and a newly created appointment with *201*; *200* is what it answers when it did
+  not do the thing — the login page of an ended session, or a short status message. Those two are recognised by
+  what they carry; now the answer code is looked at as well, so an empty *200* from something sitting between
+  this computer and the NAS no longer reads as *"Event deleted"*.
+
 ## 1.1.11 – 2026-09-23
 
 - **A refused login costs one attempt, not nine.** When the NAS answered *401*, the extension went on probing six
