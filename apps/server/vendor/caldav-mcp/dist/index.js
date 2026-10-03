@@ -51,6 +51,13 @@ function connect(nas) {
     if (SEVERAL && !(nas.username && nas.password)) {
         return Promise.reject(new Error(`NAS ${nas.n} (${nas.baseUrl}) has no user name or no password. Fill in both in the extension settings, or clear its address.`));
     }
+    // With several NAS, one that is switched off would make every look at the
+    // calendar list wait out its whole time limit again, and one that refuses
+    // the login would be asked again each time - DSM locks the account after a
+    // handful of those. So its last failure stands for a minute.
+    if (SEVERAL && nas.failed && Date.now() - nas.failed.at < 60_000) {
+        return Promise.reject(nas.failed.error);
+    }
     // Cleared on failure so a NAS that was merely asleep is retried on the next
     // call instead of poisoning the process until Claude Desktop is restarted.
     nas.connection ??= CalDAVClient.create({
@@ -63,14 +70,15 @@ function connect(nas) {
         },
     }).catch((error) => {
         nas.connection = null;
-        throw new Error(`Keine Verbindung zum CalDAV-Server (${nas.baseUrl || "keine Adresse konfiguriert"}): ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+        nas.failed = { at: Date.now(), error: null };
+        throw nas.failed.error = new Error(`Keine Verbindung zum CalDAV-Server (${nas.baseUrl || "keine Adresse konfiguriert"}): ${error instanceof Error ? error.message : String(error)}`, { cause: error });
     });
     return nas.connection;
 }
 /*
  * Which NAS a calendar URL is on.
  *
- * With one NAS that is no question. With several, list-calendars puts the
+ * With one NAS a URL needs no number. With several, list-calendars puts the
  * number of the NAS in front of every URL - "2:/caldav.php/user/home/" - and
  * every tool hands it back unchanged. The number travels inside the URL rather
  * than as a parameter of its own because the paths look alike on every NAS: a
@@ -121,7 +129,8 @@ async function allCalendars() {
 /*
  * Turns the calendar URL of a tool call into an absolute one.
  *
- * list-calendars hands out bare paths - ts-caldav strips its calendar URLs to
+ * A calendar URL is a bare path (with several NAS: behind its number, which
+ * route() has taken off by now) - ts-caldav strips its calendar URLs to
  * the pathname - and axios resolves a relative URL against the *base URL*, not
  * against the origin. With a base of "https://nas:5001/caldav/" a calendar at
  * "/caldav.php/user/home/" therefore ends up as

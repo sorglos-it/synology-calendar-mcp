@@ -248,6 +248,17 @@ tsCaldav.CalDAVClient.create = async (options) => {
 	try {
 		const client = new tsCaldav.CalDAVClient({ requestTimeout: REQUEST_TIMEOUT_MS, ...options, auth });
 		if (options.rejectUnauthorized === false) client.httpClient.defaults.httpsAgent = unchecked;
+		// Discovery asks wherever the answers of the NAS point to - the address
+		// of the user, then of the calendars - and every request carries the
+		// password. An answer naming another host must not get it.
+		const home = new URL(options.baseUrl).origin;
+		client.httpClient.interceptors.request.use((request) => {
+			const target = new URL(request.url ?? "", options.baseUrl).origin;
+			if (target !== home) {
+				throw new Error(`Refused: the NAS pointed to ${target}, which is not the NAS itself (${home}). Nothing was sent there.`);
+			}
+			return request;
+		});
 		await client.discover();
 		return client;
 	} catch (error) {

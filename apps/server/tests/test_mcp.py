@@ -30,11 +30,13 @@ class Log(list):
     pass
 
 
-def make_handler(log, nextcloud=False, refuses=False):
+def make_handler(log, nextcloud=False, refuses=False, points_to=None):
     """DSM-like by default: the DAV root /caldav/ answers OPTIONS. With
     nextcloud=True /caldav/ does not exist and only /.well-known/caldav leads
     to the endpoint."""
     root, principal = ("/remote.php/dav/", "/remote.php/dav/p/u/") if nextcloud else ("/caldav/", "/caldav.php/u/")
+    if points_to:  # a NAS whose answers name another host as the place to ask next
+        principal = points_to
 
     class H(http.server.BaseHTTPRequestHandler):
         def _send(self, code, body=b"", headers=()):
@@ -124,8 +126,8 @@ def make_handler(log, nextcloud=False, refuses=False):
     return H
 
 
-def serve(log, nextcloud=False, refuses=False):
-    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), make_handler(log, nextcloud, refuses))
+def serve(log, nextcloud=False, refuses=False, points_to=None):
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), make_handler(log, nextcloud, refuses, points_to))
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd.server_address[1]
 
@@ -448,6 +450,9 @@ sent = lambda log: base64.b64decode((log[0][2] or " ").split(" ", 1)[1]).decode(
 check("... every NAS got its own login and no other",
       sent(nas_log[-1:]) == f"u:{PASSWORD}" and {sent([x]) for x in two_log} == {"zwei:geheim2"}
       and {sent([x]) for x in off_log} == {"drei:geheim3"}, (two_log[:1], off_log[:1]))
+err, text = m.call("list-calendars")
+check(f"... a second look within a minute does not ask the refusing NAS again ({len(off_log)})",
+      not err and len(off_log) == 1 and "did not accept the login" in text, off_log)
 nas_log.clear(), two_log.clear()
 err, text = m.call("list-events", calendarUrl=CAL, start="2026-09-01T00:00:00Z", end="2026-10-01T00:00:00Z")
 check("a calendar URL without a number is refused", err and "which NAS" in text, text)
@@ -473,6 +478,16 @@ err, uid = m.call("create-event", calendarUrl="1:" + CAL, summary="Auf NAS 1",
                   start="2026-11-05T10:00:00Z", end="2026-11-05T11:00:00Z")
 check("an appointment is created on NAS 1", not err and [x[0] for x in nas_log if x[0] == "PUT"] == ["PUT"]
       and not [x for x in two_log if x[0] == "PUT" and uid.strip() in x[1]], (uid, nas_log))
+m.close()
+
+# --- a NAS that names another host as the place to ask next does not get the password sent there
+evil_log.clear()
+away_log = Log()
+AWAY = serve(away_log, points_to=f"http://127.0.0.1:{EVIL}/caldav.php/u/")
+m = Mcp(f"127.0.0.1:{AWAY}")
+err, text = m.call("list-calendars")
+check("a NAS pointing to another host is refused", err and "not the NAS itself" in text, text)
+check("... and that host saw no request", not evil_log, evil_log)
 m.close()
 
 # --- a second NAS without a password says so, the first one still works

@@ -12,6 +12,11 @@
   NAS that do answer are still there.
 - ***Zertifikat prüfen* is a switch per NAS.** Switching it off for one NAS used to switch it off for the whole
   program. Now it reaches that one connection only.
+- **The password goes to the NAS and nowhere else, also while connecting.** When connecting, the extension asks
+  where the answers of the NAS point to. An answer naming another host is now refused before anything is sent there.
+- **With several NAS, one that failed is left alone for a minute.** A NAS that is switched off no longer makes every
+  look at the calendar list wait out the whole time limit, and one that refuses the login is not asked again and
+  again – DSM locks an account after a handful of refused logins.
 
 ## 1.1.12 – 2026-09-23
 
