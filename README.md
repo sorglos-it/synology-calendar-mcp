@@ -8,8 +8,8 @@
 
 Lets **Claude** use the **Calendar app of your Synology NAS** — or any other CalDAV server: list calendars, read the
 events of a date range, create, change and delete appointments and todos, straight from a conversation. A Claude
-Desktop extension in a single `.mcpb` file: install, fill in three fields (**NAS-Adresse**, **Benutzername**,
-**Passwort**), done — the other three have defaults.
+Desktop extension in a single `.mcpb` file: install, fill in three fields (**Adresse**, **Benutzername**,
+**Passwort**), done. Up to **three NAS at once**, or several users of the same NAS.
 
 | Folder | Purpose | Language | Start | Build |
 |---|---|---|---|---|
@@ -41,12 +41,17 @@ extension. Uninstall the old *Synology Calendar* extension first (*Settings → 
 
 | Field | Meaning |
 |---|---|
-| **NAS-Adresse** | Host name or IP only, e.g. `nas.example.com`. No `https://`, no path. A non-standard port goes here as `nas.example.com:8443`. |
+| **Adresse** | Host name or IP only, e.g. `nas.example.com`. No `https://`, no path. A non-standard port goes here as `nas.example.com:8443`. |
 | **HTTPS verwenden** | On → `https`, default port 5001. Off → `http`, default port 5000, and the password crosses the network unencrypted. These are the DSM defaults. |
 | **Benutzername** | DSM login name of the user who owns the calendars |
 | **Passwort** | DSM password; stored in the OS keychain, never in the package |
 | **Zertifikat prüfen** | **On** by default: the extension only talks to a NAS whose certificate is valid for the name entered above, so nobody in between can pose as the NAS and read the password. Needs a real certificate on the NAS (e.g. Let's Encrypt). Switch off only for a NAS on its self-signed certificate, and only on your own network. |
-| **Zeitlimit pro Anfrage** | Seconds allowed per request, default 45. Leave it alone unless the NAS is slow enough to run into it. |
+| **Zeitlimit pro Anfrage** | Seconds allowed per request, default 45, for every NAS. Leave it alone unless the NAS is slow enough to run into it. |
+
+The first five fields exist three times: **NAS 1**, **NAS 2**, **NAS 3**. Only NAS 1 is required. Fill in NAS 2 or
+NAS 3 for a further NAS — or for another user of the same NAS — and leave them empty otherwise. With more than one
+filled in, `list-calendars` names the NAS of every calendar and its URL starts with the number of that NAS
+(`2:/caldav.php/…`); the other tools take that URL as it is.
 
 The labels are German because the extension manifest is; the fields behave exactly as described above.
 
@@ -59,7 +64,7 @@ manual `NODE_TLS_REJECT_UNAUTHORIZED` fiddling.
 
 | Tool | Purpose |
 |---|---|
-| `list-calendars` | All calendars with name and URL |
+| `list-calendars` | All calendars of every NAS with name and URL |
 | `list-events` | Events in a date range, a recurring one per date it falls on |
 | `create-event` | New event, optionally all-day or recurring |
 | `update-event` | Change an existing event; everything not passed stays as it is |
@@ -75,12 +80,13 @@ manual `NODE_TLS_REJECT_UNAUTHORIZED` fiddling.
 - **Runs locally.** The server talks to your NAS directly; nothing is sent to a third party. Claude Desktop stores the
   password in the OS keychain — there are no credentials in the package.
 - **Certificate checking protects the password.** It is on by default since 1.1.5. Switched off, it disables TLS
-  verification for the whole Node process, and anyone between your computer and the NAS can pose as the NAS and read
-  the DSM password — acceptable on your own LAN with a self-signed NAS, wrong anywhere else. Certificates trusted by
+  verification for that NAS, and anyone between your computer and the NAS can pose as the NAS and read
+  the DSM password — acceptable on your own LAN with a self-signed NAS, wrong anywhere else. Since 1.2.0 the switch
+  reaches the connection of its own NAS only, not the whole program. Certificates trusted by
   the operating system count too (Node.js 22.19 / 24.5 or newer). A rejected certificate is reported with the reason
   and both ways out.
-- **Calendar URLs stay on the NAS.** Every request carries the DSM password, so a calendar URL on another host is
-  refused before anything is sent — otherwise one prompt injection in an event text would be enough to leak it. A
+- **Calendar URLs stay on the NAS.** Every request carries the DSM password, so a calendar URL on another host —
+  another configured NAS included — is refused before anything is sent — otherwise one prompt injection in an event text would be enough to leak it. A
   calendar URL with `?` or `#`, and event or todo uids with `/`, `\`, `?`, `#` or `%`, are refused as well: they could
   address the whole calendar or objects in other calendars.
 - **A change edits the object, it does not rebuild it.** Since 1.1.5 an update is written into the iCalendar object
@@ -152,7 +158,7 @@ How it works:
    ts-caldav can find that path by itself on most servers, but not on DSM: its well-known probe uses GET where DSM
    only answers OPTIONS, and its fallback candidates carry no trailing slash where DSM insists on one. Discovery would
    fall back to the bare origin, DSM serves the web UI there, and no principal is ever found.
-3. With certificate checking off, `NODE_TLS_REJECT_UNAUTHORIZED=0` is set before anything connects. ts-caldav's
+3. With certificate checking off for a NAS, the connection to that NAS gets an agent that does not check. ts-caldav's
    discovery probes run only when the base URL answers with an error, so an unreachable NAS costs one request timeout,
    not eight.
 4. The bundled [caldav-mcp](https://github.com/dominik1001/caldav-mcp) server takes over, exposes the ten tools over
@@ -173,6 +179,7 @@ node apps/server/index.js
 | `CALDAV_VERIFY_SSL` | `true` (default) checks the certificate; `false` only for a self-signed NAS on your own network |
 | `CALDAV_TIMEOUT` | Seconds per request, default `45`. Blank or unparsable falls back to the default. |
 | `CALDAV_BASE_URL` | Legacy: a complete endpoint URL, wins over `CALDAV_HOST` — useful for a server that lives behind a path |
+| `CALDAV2_…`, `CALDAV3_…` | The same five (`HOST`, `HTTPS`, `USERNAME`, `PASSWORD`, `VERIFY_SSL`, or `BASE_URL`) for a second and third NAS; unused when the address is empty |
 
 See also **[synology-contacts-mcp](https://github.com/sorglos-it/synology-contacts-mcp)** — the same idea for contacts
 over CardDAV — and **[github-mcp](https://github.com/sorglos-it/github-mcp)** for repositories on github.com.

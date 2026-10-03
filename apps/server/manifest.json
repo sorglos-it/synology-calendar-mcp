@@ -2,9 +2,9 @@
   "manifest_version": "0.2",
   "name": "synology-calendar",
   "display_name": "Synology Kalender",
-  "version": "1.1.12",
-  "description": "Termine und Aufgaben eines Synology-NAS über CalDAV lesen und schreiben.",
-  "long_description": "Verbindet Claude mit der Kalender-App eines Synology-NAS (oder jedem anderen CalDAV-Server).\n\n**Funktionen**\n• Kalender auflisten, Termine im Zeitraum abfragen\n• Termine anlegen, ändern, löschen — inklusive ganztägig und Wiederholungsregeln\n• Aufgaben (VTODO) anlegen, ändern, abhaken, löschen\n\n**Datenschutz**\nDer Server läuft ausschließlich lokal auf diesem Rechner und spricht direkt mit dem NAS. Es werden keine Daten an Dritte gesendet. Das Passwort wird von Claude Desktop im Schlüsselspeicher des Betriebssystems abgelegt und ist nicht Teil dieses Pakets.\n\n**Voraussetzungen**\n• Erreichbares Synology-NAS mit aktivierter Kalender-App und CalDAV-Dienst\n• \"Zertifikat prüfen\" ist ab Werk eingeschaltet und schützt so das Passwort. Hat das NAS noch sein selbstsigniertes Zertifikat (Synology-Standard): im DSM ein gültiges einrichten (z. B. Let's Encrypt) oder die Option ausschalten – dann nur im eigenen Heimnetz nutzen\n\nBasiert auf caldav-mcp von Dominik Grusemann (MIT).",
+  "version": "1.2.0",
+  "description": "Termine und Aufgaben von bis zu drei Synology-NAS über CalDAV lesen und schreiben.",
+  "long_description": "Verbindet Claude mit der Kalender-App eines Synology-NAS (oder jedem anderen CalDAV-Server).\n\n**Funktionen**\n• Kalender auflisten, Termine im Zeitraum abfragen\n• Termine anlegen, ändern, löschen — inklusive ganztägig und Wiederholungsregeln\n• Aufgaben (VTODO) anlegen, ändern, abhaken, löschen\n• Bis zu drei NAS gleichzeitig – oder mehrere Benutzer desselben NAS\n\n**Datenschutz**\nDer Server läuft ausschließlich lokal auf diesem Rechner und spricht direkt mit dem NAS. Es werden keine Daten an Dritte gesendet. Das Passwort wird von Claude Desktop im Schlüsselspeicher des Betriebssystems abgelegt und ist nicht Teil dieses Pakets.\n\n**Voraussetzungen**\n• Erreichbares Synology-NAS mit aktivierter Kalender-App und CalDAV-Dienst\n• \"Zertifikat prüfen\" ist ab Werk eingeschaltet und schützt so das Passwort. Hat das NAS noch sein selbstsigniertes Zertifikat (Synology-Standard): im DSM ein gültiges einrichten (z. B. Let's Encrypt) oder die Option ausschalten – dann nur im eigenen Heimnetz nutzen\n\nBasiert auf caldav-mcp von Dominik Grusemann (MIT).",
   "author": {
     "name": "Sorglos Thomas Weirich"
   },
@@ -23,49 +23,127 @@
         "CALDAV_USERNAME": "${user_config.username}",
         "CALDAV_PASSWORD": "${user_config.password}",
         "CALDAV_VERIFY_SSL": "${user_config.verify_ssl}",
-        "CALDAV_TIMEOUT": "${user_config.timeout}",
-        "CALDAV_BASE_URL": ""
+        "CALDAV_BASE_URL": "",
+        "CALDAV2_HOST": "${user_config.host2}",
+        "CALDAV2_HTTPS": "${user_config.use_https2}",
+        "CALDAV2_USERNAME": "${user_config.username2}",
+        "CALDAV2_PASSWORD": "${user_config.password2}",
+        "CALDAV2_VERIFY_SSL": "${user_config.verify_ssl2}",
+        "CALDAV2_BASE_URL": "",
+        "CALDAV3_HOST": "${user_config.host3}",
+        "CALDAV3_HTTPS": "${user_config.use_https3}",
+        "CALDAV3_USERNAME": "${user_config.username3}",
+        "CALDAV3_PASSWORD": "${user_config.password3}",
+        "CALDAV3_VERIFY_SSL": "${user_config.verify_ssl3}",
+        "CALDAV3_BASE_URL": "",
+        "CALDAV_TIMEOUT": "${user_config.timeout}"
       }
     }
   },
   "user_config": {
     "host": {
       "type": "string",
-      "title": "NAS-Adresse",
+      "title": "NAS 1: Adresse",
       "description": "Nur der Name oder die IP des NAS, z. B. nas.example.com — ohne https:// und ohne Pfad. Abweichender Port als nas.example.com:5001. Den CalDAV-Pfad hängt die Extension selbst an.",
       "required": true
     },
     "use_https": {
       "type": "boolean",
-      "title": "HTTPS verwenden",
+      "title": "NAS 1: HTTPS verwenden",
       "description": "Eingeschaltet: https, Standard-Port 5001. Ausgeschaltet: http, Standard-Port 5000 – dann geht das Passwort unverschlüsselt über das Netz. Ein abweichender Port gehört hinter den Namen im Feld darüber.",
       "required": false,
       "default": true
     },
     "username": {
       "type": "string",
-      "title": "Benutzername",
+      "title": "NAS 1: Benutzername",
       "description": "DSM-Anmeldename des Benutzers, dem die Kalender gehören",
       "required": true
     },
     "password": {
       "type": "string",
-      "title": "Passwort",
+      "title": "NAS 1: Passwort",
       "description": "Passwort des DSM-Benutzers. Wird im Schlüsselspeicher des Betriebssystems abgelegt.",
       "required": true,
       "sensitive": true
     },
     "verify_ssl": {
       "type": "boolean",
-      "title": "Zertifikat prüfen",
+      "title": "NAS 1: Zertifikat prüfen",
       "description": "Eingeschaltet lassen: Es schützt das DSM-Passwort vor Mitlesern. Dafür braucht das NAS ein gültiges Zertifikat (z. B. Let's Encrypt, im DSM unter Systemsteuerung › Sicherheit › Zertifikat). Nur bei selbstsigniertem Zertifikat (Synology-Standard) ausschalten – und dann nur im eigenen Heimnetz.",
+      "required": false,
+      "default": true
+    },
+    "host2": {
+      "type": "string",
+      "title": "NAS 2: Adresse",
+      "description": "Nur ausfüllen, wenn ein weiteres NAS dazukommen soll – sonst leer lassen. Name oder IP wie bei NAS 1. Dasselbe NAS mit einem anderen Benutzer geht auch.",
+      "required": false
+    },
+    "use_https2": {
+      "type": "boolean",
+      "title": "NAS 2: HTTPS verwenden",
+      "description": "Wie bei NAS 1: eingeschaltet https (Port 5001), ausgeschaltet http (Port 5000) – dann geht das Passwort unverschlüsselt über das Netz.",
+      "required": false,
+      "default": true
+    },
+    "username2": {
+      "type": "string",
+      "title": "NAS 2: Benutzername",
+      "description": "DSM-Anmeldename auf NAS 2",
+      "required": false
+    },
+    "password2": {
+      "type": "string",
+      "title": "NAS 2: Passwort",
+      "description": "Passwort dieses DSM-Benutzers. Wird im Schlüsselspeicher des Betriebssystems abgelegt.",
+      "required": false,
+      "sensitive": true
+    },
+    "verify_ssl2": {
+      "type": "boolean",
+      "title": "NAS 2: Zertifikat prüfen",
+      "description": "Wie bei NAS 1: eingeschaltet lassen. Ausschalten gilt nur für NAS 2 – und nur im eigenen Heimnetz.",
+      "required": false,
+      "default": true
+    },
+    "host3": {
+      "type": "string",
+      "title": "NAS 3: Adresse",
+      "description": "Nur ausfüllen, wenn ein weiteres NAS dazukommen soll – sonst leer lassen. Name oder IP wie bei NAS 1. Dasselbe NAS mit einem anderen Benutzer geht auch.",
+      "required": false
+    },
+    "use_https3": {
+      "type": "boolean",
+      "title": "NAS 3: HTTPS verwenden",
+      "description": "Wie bei NAS 1: eingeschaltet https (Port 5001), ausgeschaltet http (Port 5000) – dann geht das Passwort unverschlüsselt über das Netz.",
+      "required": false,
+      "default": true
+    },
+    "username3": {
+      "type": "string",
+      "title": "NAS 3: Benutzername",
+      "description": "DSM-Anmeldename auf NAS 3",
+      "required": false
+    },
+    "password3": {
+      "type": "string",
+      "title": "NAS 3: Passwort",
+      "description": "Passwort dieses DSM-Benutzers. Wird im Schlüsselspeicher des Betriebssystems abgelegt.",
+      "required": false,
+      "sensitive": true
+    },
+    "verify_ssl3": {
+      "type": "boolean",
+      "title": "NAS 3: Zertifikat prüfen",
+      "description": "Wie bei NAS 1: eingeschaltet lassen. Ausschalten gilt nur für NAS 3 – und nur im eigenen Heimnetz.",
       "required": false,
       "default": true
     },
     "timeout": {
       "type": "number",
       "title": "Zeitlimit pro Anfrage (Sekunden)",
-      "description": "Wie lange auf eine Antwort des NAS gewartet wird, bevor die Anfrage abgebrochen wird. 45 passt zu einem DSM, das die erste Anmeldung einer Sitzung in rund fünf Sekunden beantwortet und alle weiteren aus dem Sitzungs-Cache bedient. Höher setzen, wenn das NAS träge ist und Anfragen ins Leere laufen; leer lassen übernimmt 45.",
+      "description": "Gilt für alle NAS. Wie lange auf eine Antwort gewartet wird, bevor die Anfrage abgebrochen wird. 45 passt zu einem DSM, das die erste Anmeldung einer Sitzung in rund fünf Sekunden beantwortet und alle weiteren aus dem Sitzungs-Cache bedient. Höher setzen, wenn das NAS träge ist und Anfragen ins Leere laufen; leer lassen übernimmt 45.",
       "required": false,
       "default": 45,
       "min": 5,
@@ -73,16 +151,46 @@
     }
   },
   "tools": [
-    { "name": "list-calendars", "description": "Alle Kalender mit Name und URL auflisten" },
-    { "name": "list-events", "description": "Termine in einem Zeitraum auflisten" },
-    { "name": "create-event", "description": "Termin anlegen (auch ganztägig oder wiederkehrend)" },
-    { "name": "update-event", "description": "Bestehenden Termin ändern" },
-    { "name": "delete-event", "description": "Termin löschen" },
-    { "name": "list-todos", "description": "Aufgaben auflisten, wahlweise nach Status gefiltert" },
-    { "name": "create-todo", "description": "Aufgabe anlegen" },
-    { "name": "update-todo", "description": "Aufgabe ändern" },
-    { "name": "complete-todo", "description": "Aufgabe als erledigt markieren" },
-    { "name": "delete-todo", "description": "Aufgabe löschen" }
+    {
+      "name": "list-calendars",
+      "description": "Alle Kalender aller eingetragenen NAS mit Name und URL auflisten"
+    },
+    {
+      "name": "list-events",
+      "description": "Termine in einem Zeitraum auflisten"
+    },
+    {
+      "name": "create-event",
+      "description": "Termin anlegen (auch ganztägig oder wiederkehrend)"
+    },
+    {
+      "name": "update-event",
+      "description": "Bestehenden Termin ändern"
+    },
+    {
+      "name": "delete-event",
+      "description": "Termin löschen"
+    },
+    {
+      "name": "list-todos",
+      "description": "Aufgaben auflisten, wahlweise nach Status gefiltert"
+    },
+    {
+      "name": "create-todo",
+      "description": "Aufgabe anlegen"
+    },
+    {
+      "name": "update-todo",
+      "description": "Aufgabe ändern"
+    },
+    {
+      "name": "complete-todo",
+      "description": "Aufgabe als erledigt markieren"
+    },
+    {
+      "name": "delete-todo",
+      "description": "Aufgabe löschen"
+    }
   ],
   "keywords": [
     "calendar",

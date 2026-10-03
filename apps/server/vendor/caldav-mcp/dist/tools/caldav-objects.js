@@ -15,6 +15,19 @@ const parser = new XMLParser({ removeNSPrefix: true });
 const PROPS = "<d:prop><d:getetag/><c:calendar-data/></d:prop>";
 const NS = 'xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"';
 
+/**
+ * With several NAS a calendar URL starts with the number of its NAS, "2:"
+ * (see route() in ../index.js). The NAS answers with bare addresses, so the
+ * objects found in a calendar get that number back - changing or deleting one
+ * must go to the NAS it was read from - and it comes off again where an
+ * address is sent to the NAS inside a request.
+ */
+const nasOf = (url) => String(url).match(/^[1-9]:/)?.[0] ?? "";
+const onNasOf = (calendarUrl, objects) => {
+	const nas = nasOf(calendarUrl);
+	return nas ? objects.map((object) => ({ ...object, href: nas + object.href })) : objects;
+};
+
 /** 2026-09-20T00:00:00Z as CalDAV wants it: 20260920T000000Z */
 export const stampOf = (date) => date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
@@ -74,7 +87,7 @@ export async function queryObjects(client, calendarUrl, component, range, uid = 
 		: `<c:comp-filter name="${component}"/>`;
 	const body = `<?xml version="1.0" encoding="utf-8"?><c:calendar-query ${NS}>${PROPS}`
 		+ `<c:filter><c:comp-filter name="VCALENDAR">${filter}</c:comp-filter></c:filter></c:calendar-query>`;
-	return parseMultistatus(await client.report(calendarUrl, body, "1"));
+	return onNasOf(calendarUrl, parseMultistatus(await client.report(calendarUrl, body, "1")));
 }
 
 /** Text that goes into the request, with the five XML characters escaped. */
@@ -85,8 +98,8 @@ const xml = (value) => String(value)
 /** One object by its address. */
 export async function readObject(client, calendarUrl, href) {
 	const body = `<?xml version="1.0" encoding="utf-8"?><c:calendar-multiget ${NS}>${PROPS}`
-		+ `<d:href>${xml(href)}</d:href></c:calendar-multiget>`;
-	const [found] = parseMultistatus(await client.report(calendarUrl, body, "1"));
+		+ `<d:href>${xml(href.slice(nasOf(href).length))}</d:href></c:calendar-multiget>`;
+	const [found] = onNasOf(calendarUrl, parseMultistatus(await client.report(calendarUrl, body, "1")));
 	return found ?? null;
 }
 

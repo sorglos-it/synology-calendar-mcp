@@ -5,12 +5,13 @@
  * Thin wrapper around the bundled caldav-mcp server (vendor/caldav-mcp/dist/index.js).
  * Above all it does two things the bundled server cannot:
  *
- *   1. Claude Desktop can only inject strings into env, while Node expects the
- *      literal "0" in NODE_TLS_REJECT_UNAUTHORIZED to accept a self-signed
- *      certificate. So CALDAV_VERIFY_SSL is translated here - same name and
- *      same polarity as CARDDAV_VERIFY_SSL in the contacts extension.
+ *   1. Claude Desktop can only inject strings into env. CALDAV_VERIFY_SSL is
+ *      read here - same name and same polarity as CARDDAV_VERIFY_SSL in the
+ *      contacts extension - and applied to the connection of that one NAS.
  *   2. The settings dialog asks for a host name and a protocol switch, not a
  *      URL. CALDAV_BASE_URL is assembled from those before caldav-mcp reads it.
+ *
+ * Both happen once per NAS: the dialog has room for three.
  *
  * The CalDAV path is appended here, exactly like the contacts extension does.
  * ts-caldav can discover it on its own, but not against DSM: its well-known
@@ -21,6 +22,7 @@
  * "User principal not found" before it ever speaks MCP.
  */
 
+import https from "node:https";
 import tls from "node:tls";
 
 const flag = (name, fallback) => {
@@ -70,9 +72,7 @@ const composeBaseUrl = (host, https) => {
 	return `${https ? "https" : "http"}://${h}/caldav/`;
 };
 
-if (!flag("CALDAV_VERIFY_SSL", true)) {
-	process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-} else if (typeof tls.setDefaultCACertificates === "function") {
+if (typeof tls.setDefaultCACertificates === "function") {
 	// Node trusts only its built-in list, so a NAS certificate the user trusted
 	// in the operating system would still be refused - the contacts extension
 	// accepts it. Node 22.19 / 24.5 and newer can add the system store.
@@ -83,10 +83,29 @@ if (!flag("CALDAV_VERIFY_SSL", true)) {
 	}
 }
 
-// CALDAV_BASE_URL stays supported for existing setups and wins when both are set.
-if (!process.env.CALDAV_BASE_URL && process.env.CALDAV_HOST) {
-	const url = composeBaseUrl(process.env.CALDAV_HOST, flag("CALDAV_HTTPS", true));
-	if (url) process.env.CALDAV_BASE_URL = url;
+/*
+ * Up to three NAS. The first one keeps the variable names it always had
+ * (CALDAV_HOST ...), the second and third carry their number (CALDAV2_HOST ...).
+ * Each is settled here, so the bundled server finds the same three things per
+ * NAS: a complete _BASE_URL, _VERIFY_SSL as "true" or "false", and the login.
+ *
+ * A field of the settings dialog that was left empty can arrive as the bare
+ * placeholder "${user_config.host2}" instead of an empty string. That is not a
+ * NAS called "${user_config.host2}", so it counts as empty.
+ */
+const SLOTS =["CALDAV", "CALDAV2", "CALDAV3"];
+for (const slot of SLOTS) {
+	for (const field of ["HOST", "HTTPS", "USERNAME", "PASSWORD", "VERIFY_SSL", "BASE_URL"]) {
+		if (/^\s*\$\{user_config\.[^}]*\}\s*$/.test(process.env[`${slot}_${field}`] ?? "")) {
+			process.env[`${slot}_${field}`] = "";
+		}
+	}
+	// _BASE_URL stays supported for existing setups and wins when both are set.
+	if (!process.env[`${slot}_BASE_URL`] && process.env[`${slot}_HOST`]) {
+		const url = composeBaseUrl(process.env[`${slot}_HOST`], flag(`${slot}_HTTPS`, true));
+		if (url) process.env[`${slot}_BASE_URL`] = url;
+	}
+	process.env[`${slot}_VERIFY_SSL`] = String(flag(`${slot}_VERIFY_SSL`, true));
 }
 
 const missing = [];
@@ -192,9 +211,14 @@ const utf8 = (s) => Buffer.from(String(s ?? ""), "utf8").toString("latin1");
  * certificate fails at the first connection - and axios says only
  * "self-signed certificate", or suggests a Node.js command-line switch nobody
  * using Claude Desktop can set. A fixed reason per error code plus the two ways
- * out replace that. (ts-caldav's own rejectUnauthorized option is no way to
- * switch the check off: in this ES module build its require("https") throws and
- * is swallowed, so the option silently does nothing.)
+ * out replace that.
+ *
+ * "Zertifikat prüfen" is a switch per NAS, so switching it off must not reach
+ * the other ones: the unchecked connection is an agent of that one client, not
+ * NODE_TLS_REJECT_UNAUTHORIZED for the whole process. (ts-caldav's own
+ * rejectUnauthorized option cannot do it: in this ES module build its
+ * require("https") throws and is swallowed, so the option silently does
+ * nothing. The agent is therefore set here, before the first request.)
  */
 const CERT_REASONS = {
 	DEPTH_ZERO_SELF_SIGNED_CERT: "it is self-signed",
@@ -215,14 +239,17 @@ const certReason = (error) => {
 	return null;
 };
 
-const createClient = tsCaldav.CalDAVClient.create.bind(tsCaldav.CalDAVClient);
+const unchecked = new https.Agent({ rejectUnauthorized: false });
 tsCaldav.CalDAVClient.create = async (options) => {
 	const auth =
 		options.auth?.type === "basic"
 			? { ...options.auth, username: utf8(options.auth.username), password: utf8(options.auth.password) }
 			: options.auth;
 	try {
-		return await createClient({ requestTimeout: REQUEST_TIMEOUT_MS, ...options, auth });
+		const client = new tsCaldav.CalDAVClient({ requestTimeout: REQUEST_TIMEOUT_MS, ...options, auth });
+		if (options.rejectUnauthorized === false) client.httpClient.defaults.httpsAgent = unchecked;
+		await client.discover();
+		return client;
 	} catch (error) {
 		const reason = certReason(error);
 		if (!reason) throw error;

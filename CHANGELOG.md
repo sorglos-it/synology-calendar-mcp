@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.0 – 2026-10-03
+
+- **Up to three NAS at once – or several users of the same NAS.** The settings have room for a second and a third
+  login (*NAS 2*, *NAS 3*: address, user name, password). Leave them empty and everything stays as it was. With
+  more than one filled in, `list-calendars` shows the calendars of all of them, says which NAS each one is on, and
+  puts the number of the NAS in front of its URL (`2:/caldav.php/…`). Every other tool takes that URL as it is, so
+  an appointment always lands on the NAS its calendar belongs to. A URL without the number is refused instead of
+  guessed.
+- **A NAS that does not answer no longer hides the others.** It is listed with the reason; the calendars of the
+  NAS that do answer are still there.
+- ***Zertifikat prüfen* is a switch per NAS.** Switching it off for one NAS used to switch it off for the whole
+  program. Now it reaches that one connection only.
+
 ## 1.1.12 – 2026-09-23
 
 - **A delete counts as done only when the NAS says it is done.** Measured against a Synology NAS, its calendar

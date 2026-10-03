@@ -67,6 +67,11 @@ def make_handler(log, nextcloud=False, refuses=False):
             elif c == "PROPFIND" and p == principal:
                 body = resp(p, f"<c:calendar-home-set><d:href>{principal}</d:href></c:calendar-home-set>"
                                "<d:displayname>u</d:displayname>")
+                if self.headers.get("Depth") == "1":  # the calendars of that home
+                    body += resp(principal + "home/", "<d:resourcetype><d:collection/><c:calendar/>"
+                                 "</d:resourcetype><d:displayname>Privat</d:displayname>"
+                                 '<c:supported-calendar-component-set><c:comp name="VEVENT"/>'
+                                 "</c:supported-calendar-component-set>")
             elif c == "REPORT":
                 if STATE.get("session_over"):  # DSM login page, HTTP 200
                     return self._send(200, b"<html>login</html>",
@@ -167,10 +172,10 @@ PASSWORD = os.environ.get("E2E_PASSWORD", "pä€ss")
 
 
 class Mcp:
-    def __init__(self, host, timeout="10"):
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("CALDAV_", "NODE_"))}
+    def __init__(self, host, timeout="10", **more):
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("CALDAV", "NODE_"))}
         env.update(CALDAV_HOST=host, CALDAV_HTTPS="false", CALDAV_USERNAME="u",
-                   CALDAV_PASSWORD=PASSWORD, CALDAV_TIMEOUT=timeout, TZ="Europe/Berlin")
+                   CALDAV_PASSWORD=PASSWORD, CALDAV_TIMEOUT=timeout, TZ="Europe/Berlin", **more)
         self.p = subprocess.Popen(["node", str(APP / "index.js")], stdin=subprocess.PIPE,
                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env,
                                   text=True, encoding="utf-8")
@@ -415,6 +420,66 @@ m.close()
 m = Mcp(f"127.0.0.1:{NC}")
 err, text = m.call("delete-event", uid="n1", calendarUrl="/remote.php/dav/p/u/home/")
 check("server behind a /.well-known redirect still works", not err and "deleted" in text, (text, nc_log[:8]))
+m.close()
+
+# --- one NAS: the calendar list looks as it always did
+m = Mcp(f"127.0.0.1:{NAS}", CALDAV2_HOST="${user_config.host2}", CALDAV3_HOST="")
+err, text = m.call("list-calendars")
+check("one NAS: calendar URLs carry no number, an unfilled field is no NAS",
+      not err and [c["url"] for c in json.loads(text)] == [CAL] and "nas" not in text, text)
+m.close()
+
+# --- several NAS: every request goes to the NAS its calendar is on
+two_log, off_log = Log(), Log()
+TWO, OFF = serve(two_log), serve(off_log, refuses=True)
+m = Mcp(f"127.0.0.1:{NAS}", CALDAV2_HOST=f"127.0.0.1:{TWO}", CALDAV2_HTTPS="false",
+        CALDAV2_USERNAME="zwei", CALDAV2_PASSWORD="geheim2",
+        CALDAV3_HOST=f"127.0.0.1:{OFF}", CALDAV3_HTTPS="false",
+        CALDAV3_USERNAME="drei", CALDAV3_PASSWORD="geheim3")
+err, text = m.call("list-calendars")
+cals = json.loads(text) if not err else []
+check("several NAS: each calendar carries the number of its NAS",
+      [c.get("url") for c in cals] == ["1:" + CAL, "2:" + CAL, None], text)
+check("... and says which NAS that is", [c["nas"] for c in cals]
+      == [f"u@127.0.0.1:{NAS}", f"zwei@127.0.0.1:{TWO}", f"drei@127.0.0.1:{OFF}"], text)
+check("... a NAS that refuses the login is listed with the reason, the others still answer",
+      "did not accept the login" in cals[2].get("error", ""), text)
+sent = lambda log: base64.b64decode((log[0][2] or " ").split(" ", 1)[1]).decode("utf-8")
+check("... every NAS got its own login and no other",
+      sent(nas_log[-1:]) == f"u:{PASSWORD}" and {sent([x]) for x in two_log} == {"zwei:geheim2"}
+      and {sent([x]) for x in off_log} == {"drei:geheim3"}, (two_log[:1], off_log[:1]))
+nas_log.clear(), two_log.clear()
+err, text = m.call("list-events", calendarUrl=CAL, start="2026-09-01T00:00:00Z", end="2026-10-01T00:00:00Z")
+check("a calendar URL without a number is refused", err and "which NAS" in text, text)
+err, text = m.call("list-events", calendarUrl="4:" + CAL, start="2026-09-01T00:00:00Z", end="2026-10-01T00:00:00Z")
+check("... and so is the number of a NAS that is not there", err and "no NAS 4" in text, text)
+err, text = m.call("delete-event", uid="x", calendarUrl=f"2:http://127.0.0.1:{NAS}{CAL}")
+check("... and a URL of NAS 1 under the number of NAS 2", err and "Refused" in text, text)
+check("... none of them reached a NAS", not nas_log and not [x for x in two_log if x[0] != "OPTIONS"
+      and x[0] != "PROPFIND"], (nas_log, two_log))
+STORE["/caldav.php/u/home/eigen-name.ics"] = event_ics("auf-zwei")
+nas_log.clear(), two_log.clear()
+err, text = m.call("update-event", uid="auf-zwei", calendarUrl="2:" + CAL, summary="Auf NAS 2")
+check("an appointment on NAS 2 is changed", not err and "Auf NAS 2" in STORE["/caldav.php/u/home/eigen-name.ics"], text)
+err, text = m.call("delete-event", uid="auf-zwei", calendarUrl="2:" + CAL)
+check("... and deleted", not err and "deleted" in text, text)
+check("... at its own address, on NAS 2",
+      [x[:2] for x in two_log if x[0] in ("PUT", "DELETE")]
+      == [("PUT", "/caldav.php/u/home/eigen-name.ics"), ("DELETE", "/caldav.php/u/home/eigen-name.ics")], two_log)
+check("... while NAS 1 saw nothing of it", not nas_log, nas_log)
+check("... and no address sent to the NAS carried the number",
+      not [x for x in two_log if "2:" in x[1] or "2%3A" in x[1]], two_log)
+err, uid = m.call("create-event", calendarUrl="1:" + CAL, summary="Auf NAS 1",
+                  start="2026-11-05T10:00:00Z", end="2026-11-05T11:00:00Z")
+check("an appointment is created on NAS 1", not err and [x[0] for x in nas_log if x[0] == "PUT"] == ["PUT"]
+      and not [x for x in two_log if x[0] == "PUT" and uid.strip() in x[1]], (uid, nas_log))
+m.close()
+
+# --- a second NAS without a password says so, the first one still works
+m = Mcp(f"127.0.0.1:{NAS}", CALDAV2_HOST=f"127.0.0.1:{TWO}", CALDAV2_HTTPS="false", CALDAV2_USERNAME="zwei")
+err, text = m.call("list-calendars")
+check("a NAS without a password is named, the other one listed",
+      not err and '"1:' in text and "no user name or no password" in text, text)
 m.close()
 
 # --- a broken NAS address gets a readable error on every tool

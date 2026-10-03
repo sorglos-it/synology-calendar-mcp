@@ -1,6 +1,6 @@
 export const listCalendarsDefinition = {
     name: "list-calendars",
-    description: "List all calendars returning both name and URL",
+    description: "List all calendars returning both name and URL. With more than one NAS configured, every calendar also names its NAS and its URL starts with the number of that NAS (\"2:/...\"); pass the URL on to the other tools exactly as listed.",
     inputSchema: {},
     returns: "List of all available calendars",
 };

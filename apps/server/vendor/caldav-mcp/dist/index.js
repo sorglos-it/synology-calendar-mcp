@@ -28,22 +28,95 @@ const server = new McpServer({
  * over budget. The handshake now completes in milliseconds and a NAS that does
  * not answer becomes an error on the tool that needed it.
  */
-let connection = null;
-function connect() {
+/*
+ * Up to three NAS at once (1.2.0). The first is always there, the second and
+ * third only when their address is filled in; ../../../index.js has settled
+ * the variables of each before this file is loaded.
+ */
+const SERVERS = [1, 2, 3]
+    .map((n) => {
+    const slot = n === 1 ? "CALDAV" : `CALDAV${n}`;
+    return {
+        n,
+        baseUrl: process.env[`${slot}_BASE_URL`] || "",
+        username: process.env[`${slot}_USERNAME`] || "",
+        password: process.env[`${slot}_PASSWORD`] || "",
+        verify: process.env[`${slot}_VERIFY_SSL`] !== "false",
+        connection: null,
+    };
+})
+    .filter((nas) => nas.n === 1 || nas.baseUrl);
+const SEVERAL = SERVERS.length > 1;
+function connect(nas) {
+    if (SEVERAL && !(nas.username && nas.password)) {
+        return Promise.reject(new Error(`NAS ${nas.n} (${nas.baseUrl}) has no user name or no password. Fill in both in the extension settings, or clear its address.`));
+    }
     // Cleared on failure so a NAS that was merely asleep is retried on the next
     // call instead of poisoning the process until Claude Desktop is restarted.
-    connection ??= CalDAVClient.create({
-        baseUrl: process.env.CALDAV_BASE_URL || "",
+    nas.connection ??= CalDAVClient.create({
+        baseUrl: nas.baseUrl,
+        rejectUnauthorized: nas.verify,
         auth: {
             type: "basic",
-            username: process.env.CALDAV_USERNAME || "",
-            password: process.env.CALDAV_PASSWORD || "",
+            username: nas.username,
+            password: nas.password,
         },
     }).catch((error) => {
-        connection = null;
-        throw new Error(`Keine Verbindung zum CalDAV-Server (${process.env.CALDAV_BASE_URL || "keine Adresse konfiguriert"}): ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+        nas.connection = null;
+        throw new Error(`Keine Verbindung zum CalDAV-Server (${nas.baseUrl || "keine Adresse konfiguriert"}): ${error instanceof Error ? error.message : String(error)}`, { cause: error });
     });
-    return connection;
+    return nas.connection;
+}
+/*
+ * Which NAS a calendar URL is on.
+ *
+ * With one NAS that is no question. With several, list-calendars puts the
+ * number of the NAS in front of every URL - "2:/caldav.php/user/home/" - and
+ * every tool hands it back unchanged. The number travels inside the URL rather
+ * than as a parameter of its own because the paths look alike on every NAS: a
+ * forgotten or mixed-up parameter would write the appointment into the
+ * calendar of the same name on the wrong NAS, and nothing would notice. A URL
+ * without a number is therefore refused instead of guessed.
+ */
+function route(url) {
+    const numbered = url.match(/^([1-9]):(.*)$/s);
+    if (!numbered) {
+        if (SEVERAL) {
+            throw new Error(`Refused: ${url} does not say which NAS it is on. Use a calendar URL from list-calendars - it starts with the number of the NAS, like "2:/caldav.php/...".`);
+        }
+        return [SERVERS[0], url];
+    }
+    const nas = SERVERS.find((candidate) => candidate.n === Number(numbered[1]));
+    if (!nas) {
+        throw new Error(`Refused: there is no NAS ${numbered[1]} in the extension settings. Use a calendar URL from list-calendars.`);
+    }
+    return [nas, numbered[2]];
+}
+/*
+ * The calendars of every NAS. One that is asleep or refuses the login must not
+ * hide the calendars of the others, so it is listed with what went wrong; only
+ * when none of them answers is the whole call an error.
+ */
+async function allCalendars() {
+    if (!SEVERAL)
+        return (await connect(SERVERS[0])).getCalendars();
+    const failed = [];
+    const lists = await Promise.all(SERVERS.map(async (nas) => {
+        let name = nas.baseUrl;
+        try {
+            name = `${nas.username}@${new URL(nas.baseUrl).host}`;
+            const calendars = await (await connect(nas)).getCalendars();
+            return calendars.map((calendar) => ({ ...calendar, url: `${nas.n}:${calendar.url}`, nas: name }));
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            failed.push(message);
+            return [{ nas: name, error: message }];
+        }
+    }));
+    if (failed.length === SERVERS.length)
+        throw new Error(failed.join(" | "));
+    return lists.flat();
 }
 /*
  * Turns the calendar URL of a tool call into an absolute one.
@@ -61,7 +134,7 @@ function connect() {
  *
  * Every client method takes the calendar URL first, so only args[0] is touched.
  *
- * It also has to stay on the NAS. Every request carries the DSM password in
+ * It also has to stay on the NAS - on the one it belongs to, see route(). Every request carries the DSM password in
  * its Authorization header, so a calendarUrl like "https://elsewhere/",
  * "//elsewhere/" or "/\elsewhere/" - one prompt injection in an event text
  * away - would hand the password to that host. Any URL whose origin is not the
@@ -71,16 +144,16 @@ function connect() {
  * calendar URL, and behind a "?" or "#" that part stops being path - the
  * DELETE of one event would go to the calendar itself.
  */
-function absolutizeCalendarUrl(args) {
+function absolutizeCalendarUrl(nas, args) {
     const [url] = args;
     if (typeof url !== "string")
         return args;
     let base;
     try {
-        base = new URL(process.env.CALDAV_BASE_URL || "");
+        base = new URL(nas.baseUrl);
     }
     catch {
-        throw new Error(`The NAS address is not valid (${process.env.CALDAV_BASE_URL || "empty"}). Check the NAS address: a name or IP, optionally followed by :port.`);
+        throw new Error(`The NAS address is not valid (${nas.baseUrl || "empty"}). Check the NAS address: a name or IP, optionally followed by :port.`);
     }
     let target;
     try {
@@ -109,8 +182,11 @@ const client = new Proxy({}, {
         if (typeof method === "symbol" || method === "then")
             return undefined;
         return async (...args) => {
-            const checked = absolutizeCalendarUrl(args);
-            const caldav = await connect();
+            if (method === "getCalendars")
+                return allCalendars();
+            const [nas, url] = typeof args[0] === "string" ? route(args[0]) : [SERVERS[0], args[0]];
+            const checked = absolutizeCalendarUrl(nas, [url, ...args.slice(1)]);
+            const caldav = await connect(nas);
             return caldav[method](...checked);
         };
     },
