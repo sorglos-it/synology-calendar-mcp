@@ -11,7 +11,7 @@
  *   2. The settings dialog asks for a host name and a protocol switch, not a
  *      URL. CALDAV_BASE_URL is assembled from those before caldav-mcp reads it.
  *
- * Both happen once per NAS: the dialog has room for three.
+ * Both happen once per NAS: the dialog has room for five.
  *
  * The CalDAV path is appended here, exactly like the contacts extension does.
  * ts-caldav can discover it on its own, but not against DSM: its well-known
@@ -84,8 +84,8 @@ if (typeof tls.setDefaultCACertificates === "function") {
 }
 
 /*
- * Up to three NAS. The first one keeps the variable names it always had
- * (CALDAV_HOST ...), the second and third carry their number (CALDAV2_HOST ...).
+ * Up to five NAS. The first one keeps the variable names it always had
+ * (CALDAV_HOST ...), the others carry their number (CALDAV2_HOST ...).
  * Each is settled here, so the bundled server finds the same three things per
  * NAS: a complete _BASE_URL, _VERIFY_SSL as "true" or "false", and the login.
  *
@@ -93,7 +93,7 @@ if (typeof tls.setDefaultCACertificates === "function") {
  * placeholder "${user_config.host2}" instead of an empty string. That is not a
  * NAS called "${user_config.host2}", so it counts as empty.
  */
-const SLOTS =["CALDAV", "CALDAV2", "CALDAV3"];
+const SLOTS =["CALDAV", "CALDAV2", "CALDAV3", "CALDAV4", "CALDAV5"];
 for (const slot of SLOTS) {
 	for (const field of ["HOST", "HTTPS", "USERNAME", "PASSWORD", "VERIFY_SSL", "BASE_URL"]) {
 		if (/^\s*\$\{user_config\.[^}]*\}\s*$/.test(process.env[`${slot}_${field}`] ?? "")) {

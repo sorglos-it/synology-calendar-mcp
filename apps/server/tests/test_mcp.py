@@ -434,8 +434,8 @@ two_log, off_log = Log(), Log()
 TWO, OFF = serve(two_log), serve(off_log, refuses=True)
 m = Mcp(f"127.0.0.1:{NAS}", CALDAV2_HOST=f"127.0.0.1:{TWO}", CALDAV2_HTTPS="false",
         CALDAV2_USERNAME="zwei", CALDAV2_PASSWORD="geheim2",
-        CALDAV3_HOST=f"127.0.0.1:{OFF}", CALDAV3_HTTPS="false",
-        CALDAV3_USERNAME="drei", CALDAV3_PASSWORD="geheim3")
+        CALDAV5_HOST=f"127.0.0.1:{OFF}", CALDAV5_HTTPS="false",
+        CALDAV5_USERNAME="drei", CALDAV5_PASSWORD="geheim3")
 err, text = m.call("list-calendars")
 cals = json.loads(text) if not err else []
 check("several NAS: each calendar carries the number of its NAS",

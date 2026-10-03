@@ -2,8 +2,8 @@
 
 ## 1.2.0 – 2026-10-03
 
-- **Up to three NAS at once – or several users of the same NAS.** The settings have room for a second and a third
-  login (*NAS 2*, *NAS 3*: address, user name, password). Leave them empty and everything stays as it was. With
+- **Up to five NAS at once – or several users of the same NAS.** The settings have room for four more logins
+  (*NAS 2* to *NAS 5*: address, user name, password). Leave them empty and everything stays as it was. With
   more than one filled in, `list-calendars` shows the calendars of all of them, says which NAS each one is on, and
   puts the number of the NAS in front of its URL (`2:/caldav.php/…`). Every other tool takes that URL as it is, so
   an appointment always lands on the NAS its calendar belongs to. A URL without the number is refused instead of

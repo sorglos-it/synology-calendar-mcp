@@ -29,11 +29,11 @@ const server = new McpServer({
  * not answer becomes an error on the tool that needed it.
  */
 /*
- * Up to three NAS at once (1.2.0). The first is always there, the second and
- * third only when their address is filled in; ../../../index.js has settled
+ * Up to five NAS at once (1.2.0). The first is always there, the others only
+ * when their address is filled in; ../../../index.js has settled
  * the variables of each before this file is loaded.
  */
-const SERVERS = [1, 2, 3]
+const SERVERS = [1, 2, 3, 4, 5]
     .map((n) => {
     const slot = n === 1 ? "CALDAV" : `CALDAV${n}`;
     return {

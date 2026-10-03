@@ -3,8 +3,8 @@
   "name": "synology-calendar",
   "display_name": "Synology Kalender",
   "version": "1.2.0",
-  "description": "Termine und Aufgaben von bis zu drei Synology-NAS über CalDAV lesen und schreiben.",
-  "long_description": "Verbindet Claude mit der Kalender-App eines Synology-NAS (oder jedem anderen CalDAV-Server).\n\n**Funktionen**\n• Kalender auflisten, Termine im Zeitraum abfragen\n• Termine anlegen, ändern, löschen — inklusive ganztägig und Wiederholungsregeln\n• Aufgaben (VTODO) anlegen, ändern, abhaken, löschen\n• Bis zu drei NAS gleichzeitig – oder mehrere Benutzer desselben NAS\n\n**Datenschutz**\nDer Server läuft ausschließlich lokal auf diesem Rechner und spricht direkt mit dem NAS. Es werden keine Daten an Dritte gesendet. Das Passwort wird von Claude Desktop im Schlüsselspeicher des Betriebssystems abgelegt und ist nicht Teil dieses Pakets.\n\n**Voraussetzungen**\n• Erreichbares Synology-NAS mit aktivierter Kalender-App und CalDAV-Dienst\n• \"Zertifikat prüfen\" ist ab Werk eingeschaltet und schützt so das Passwort. Hat das NAS noch sein selbstsigniertes Zertifikat (Synology-Standard): im DSM ein gültiges einrichten (z. B. Let's Encrypt) oder die Option ausschalten – dann nur im eigenen Heimnetz nutzen\n\nBasiert auf caldav-mcp von Dominik Grusemann (MIT).",
+  "description": "Termine und Aufgaben von bis zu fünf Synology-NAS über CalDAV lesen und schreiben.",
+  "long_description": "Verbindet Claude mit der Kalender-App eines Synology-NAS (oder jedem anderen CalDAV-Server).\n\n**Funktionen**\n• Kalender auflisten, Termine im Zeitraum abfragen\n• Termine anlegen, ändern, löschen — inklusive ganztägig und Wiederholungsregeln\n• Aufgaben (VTODO) anlegen, ändern, abhaken, löschen\n• Bis zu fünf NAS gleichzeitig – oder mehrere Benutzer desselben NAS\n\n**Datenschutz**\nDer Server läuft ausschließlich lokal auf diesem Rechner und spricht direkt mit dem NAS. Es werden keine Daten an Dritte gesendet. Das Passwort wird von Claude Desktop im Schlüsselspeicher des Betriebssystems abgelegt und ist nicht Teil dieses Pakets.\n\n**Voraussetzungen**\n• Erreichbares Synology-NAS mit aktivierter Kalender-App und CalDAV-Dienst\n• \"Zertifikat prüfen\" ist ab Werk eingeschaltet und schützt so das Passwort. Hat das NAS noch sein selbstsigniertes Zertifikat (Synology-Standard): im DSM ein gültiges einrichten (z. B. Let's Encrypt) oder die Option ausschalten – dann nur im eigenen Heimnetz nutzen\n\nBasiert auf caldav-mcp von Dominik Grusemann (MIT).",
   "author": {
     "name": "Sorglos Thomas Weirich"
   },
@@ -36,6 +36,18 @@
         "CALDAV3_PASSWORD": "${user_config.password3}",
         "CALDAV3_VERIFY_SSL": "${user_config.verify_ssl3}",
         "CALDAV3_BASE_URL": "",
+        "CALDAV4_HOST": "${user_config.host4}",
+        "CALDAV4_HTTPS": "${user_config.use_https4}",
+        "CALDAV4_USERNAME": "${user_config.username4}",
+        "CALDAV4_PASSWORD": "${user_config.password4}",
+        "CALDAV4_VERIFY_SSL": "${user_config.verify_ssl4}",
+        "CALDAV4_BASE_URL": "",
+        "CALDAV5_HOST": "${user_config.host5}",
+        "CALDAV5_HTTPS": "${user_config.use_https5}",
+        "CALDAV5_USERNAME": "${user_config.username5}",
+        "CALDAV5_PASSWORD": "${user_config.password5}",
+        "CALDAV5_VERIFY_SSL": "${user_config.verify_ssl5}",
+        "CALDAV5_BASE_URL": "",
         "CALDAV_TIMEOUT": "${user_config.timeout}"
       }
     }
@@ -137,6 +149,72 @@
       "type": "boolean",
       "title": "NAS 3: Zertifikat prüfen",
       "description": "Wie bei NAS 1: eingeschaltet lassen. Ausschalten gilt nur für NAS 3 – und nur im eigenen Heimnetz.",
+      "required": false,
+      "default": true
+    },
+    "host4": {
+      "type": "string",
+      "title": "NAS 4: Adresse",
+      "description": "Nur ausfüllen, wenn ein weiteres NAS dazukommen soll – sonst leer lassen. Name oder IP wie bei NAS 1. Dasselbe NAS mit einem anderen Benutzer geht auch.",
+      "required": false
+    },
+    "use_https4": {
+      "type": "boolean",
+      "title": "NAS 4: HTTPS verwenden",
+      "description": "Wie bei NAS 1: eingeschaltet https (Port 5001), ausgeschaltet http (Port 5000) – dann geht das Passwort unverschlüsselt über das Netz.",
+      "required": false,
+      "default": true
+    },
+    "username4": {
+      "type": "string",
+      "title": "NAS 4: Benutzername",
+      "description": "DSM-Anmeldename auf NAS 4",
+      "required": false
+    },
+    "password4": {
+      "type": "string",
+      "title": "NAS 4: Passwort",
+      "description": "Passwort dieses DSM-Benutzers. Wird im Schlüsselspeicher des Betriebssystems abgelegt.",
+      "required": false,
+      "sensitive": true
+    },
+    "verify_ssl4": {
+      "type": "boolean",
+      "title": "NAS 4: Zertifikat prüfen",
+      "description": "Wie bei NAS 1: eingeschaltet lassen. Ausschalten gilt nur für NAS 4 – und nur im eigenen Heimnetz.",
+      "required": false,
+      "default": true
+    },
+    "host5": {
+      "type": "string",
+      "title": "NAS 5: Adresse",
+      "description": "Nur ausfüllen, wenn ein weiteres NAS dazukommen soll – sonst leer lassen. Name oder IP wie bei NAS 1. Dasselbe NAS mit einem anderen Benutzer geht auch.",
+      "required": false
+    },
+    "use_https5": {
+      "type": "boolean",
+      "title": "NAS 5: HTTPS verwenden",
+      "description": "Wie bei NAS 1: eingeschaltet https (Port 5001), ausgeschaltet http (Port 5000) – dann geht das Passwort unverschlüsselt über das Netz.",
+      "required": false,
+      "default": true
+    },
+    "username5": {
+      "type": "string",
+      "title": "NAS 5: Benutzername",
+      "description": "DSM-Anmeldename auf NAS 5",
+      "required": false
+    },
+    "password5": {
+      "type": "string",
+      "title": "NAS 5: Passwort",
+      "description": "Passwort dieses DSM-Benutzers. Wird im Schlüsselspeicher des Betriebssystems abgelegt.",
+      "required": false,
+      "sensitive": true
+    },
+    "verify_ssl5": {
+      "type": "boolean",
+      "title": "NAS 5: Zertifikat prüfen",
+      "description": "Wie bei NAS 1: eingeschaltet lassen. Ausschalten gilt nur für NAS 5 – und nur im eigenen Heimnetz.",
       "required": false,
       "default": true
     },

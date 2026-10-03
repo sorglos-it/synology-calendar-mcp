@@ -9,7 +9,7 @@
 Lets **Claude** use the **Calendar app of your Synology NAS** — or any other CalDAV server: list calendars, read the
 events of a date range, create, change and delete appointments and todos, straight from a conversation. A Claude
 Desktop extension in a single `.mcpb` file: install, fill in three fields (**Adresse**, **Benutzername**,
-**Passwort**), done. Up to **three NAS at once**, or several users of the same NAS.
+**Passwort**), done. Up to **five NAS at once**, or several users of the same NAS.
 
 | Folder | Purpose | Language | Start | Build |
 |---|---|---|---|---|
@@ -48,8 +48,8 @@ extension. Uninstall the old *Synology Calendar* extension first (*Settings → 
 | **Zertifikat prüfen** | **On** by default: the extension only talks to a NAS whose certificate is valid for the name entered above, so nobody in between can pose as the NAS and read the password. Needs a real certificate on the NAS (e.g. Let's Encrypt). Switch off only for a NAS on its self-signed certificate, and only on your own network. |
 | **Zeitlimit pro Anfrage** | Seconds allowed per request, default 45, for every NAS. Leave it alone unless the NAS is slow enough to run into it. |
 
-The first five fields exist three times: **NAS 1**, **NAS 2**, **NAS 3**. Only NAS 1 is required. Fill in NAS 2 or
-NAS 3 for a further NAS — or for another user of the same NAS — and leave them empty otherwise. With more than one
+The first five fields exist five times: **NAS 1** to **NAS 5**. Only NAS 1 is required. Fill in NAS 2 to
+NAS 5 for a further NAS — or for another user of the same NAS — and leave them empty otherwise. With more than one
 filled in, `list-calendars` names the NAS of every calendar and its URL starts with the number of that NAS
 (`2:/caldav.php/…`); the other tools take that URL as it is.
 
@@ -179,7 +179,7 @@ node apps/server/index.js
 | `CALDAV_VERIFY_SSL` | `true` (default) checks the certificate; `false` only for a self-signed NAS on your own network |
 | `CALDAV_TIMEOUT` | Seconds per request, default `45`. Blank or unparsable falls back to the default. |
 | `CALDAV_BASE_URL` | Legacy: a complete endpoint URL, wins over `CALDAV_HOST` — useful for a server that lives behind a path |
-| `CALDAV2_…`, `CALDAV3_…` | The same five (`HOST`, `HTTPS`, `USERNAME`, `PASSWORD`, `VERIFY_SSL`, or `BASE_URL`) for a second and third NAS; unused when the address is empty |
+| `CALDAV2_…` to `CALDAV5_…` | The same five (`HOST`, `HTTPS`, `USERNAME`, `PASSWORD`, `VERIFY_SSL`, or `BASE_URL`) for the second to fifth NAS; unused when the address is empty |
 
 See also **[synology-contacts-mcp](https://github.com/sorglos-it/synology-contacts-mcp)** — the same idea for contacts
 over CardDAV — and **[github-mcp](https://github.com/sorglos-it/github-mcp)** for repositories on github.com.
